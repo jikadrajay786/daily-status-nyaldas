@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import type { DailyStatus, Profile } from '@daily-status/core/database.types'
+import { fmtDate } from '@daily-status/core/format'
 import { useT, type Key } from '@daily-status/core/i18n'
 import { loadPlanBefore } from '@daily-status/core/richText'
 import { loadDraft, saveDraft } from '../lib/drafts'
@@ -18,10 +19,15 @@ import { CardsSkeleton, FormSkeleton } from './Skeletons'
 import { StatusCard } from './StatusCard'
 import { Badge, Button, Card, Field, Input, Notice, PageHeader } from './ui'
 
-type Props = { profile: Profile; date: string; onDateChange: (d: string) => void }
+type Props = {
+  profile: Profile
+  date: string
+  editing: boolean
+  onChange: (date: string, editing: boolean) => void
+}
 
-export const UserSubmission = ({ profile, date, onDateChange }: Props): React.JSX.Element => {
-  const { t } = useT()
+export const UserSubmission = ({ profile, date, editing, onChange }: Props): React.JSX.Element => {
+  const { t, locale } = useT()
   const [row, reloadRow] = useLiveQuery(`mine:${profile.id}:${date}`, () =>
     getMyStatus(profile.id, date)
   )
@@ -29,6 +35,14 @@ export const UserSubmission = ({ profile, date, onDateChange }: Props): React.JS
     listMyStatuses(profile.id, '', 5)
   )
   const [resets, setResets] = useState(0)
+  const [saved, setSaved] = useState<string | null>(null)
+  const draftKey = `draft:${profile.id}:${date}`
+  // An unsaved draft means someone was mid-edit when they left: reopen the form rather than hide their words.
+  const formOpen = editing || !(row.state === 'ok' && row.data) || loadDraft(draftKey) !== null
+  const goTo = (d: string, edit = false): void => {
+    setSaved(null)
+    onChange(d, edit)
+  }
 
   return (
     <>
@@ -40,7 +54,7 @@ export const UserSubmission = ({ profile, date, onDateChange }: Props): React.JS
               type="date"
               value={date}
               max={today()}
-              onChange={(e) => e.target.value && onDateChange(e.target.value)}
+              onChange={(e) => e.target.value && goTo(e.target.value)}
             />
           </Field>
         </div>
@@ -53,6 +67,21 @@ export const UserSubmission = ({ profile, date, onDateChange }: Props): React.JS
             <Notice>{t('statusLocked')}</Notice>
             <StatusCard status={row.data} />
           </div>
+        ) : row.data && !formOpen ? (
+          // Submitted: the form is closed and empty; Edit reopens it filled with what was saved.
+          <div className="flex flex-col gap-3">
+            {saved === date && (
+              <Notice tone="ok">{t('savedDone', { date: fmtDate(date, locale) })}</Notice>
+            )}
+            <StatusCard
+              status={row.data}
+              actions={
+                <Button variant="ghost" onClick={() => goTo(date, true)}>
+                  {t('edit')}
+                </Button>
+              }
+            />
+          </div>
         ) : (
           // Keyed so switching dates, saving or discarding a draft remounts the form with fresh values.
           <SubmissionForm
@@ -63,8 +92,16 @@ export const UserSubmission = ({ profile, date, onDateChange }: Props): React.JS
             onSaved={() => {
               reloadRow()
               reloadRecent()
+              onChange(date, false)
+              setSaved(date)
             }}
             onDiscard={() => setResets((n) => n + 1)}
+            {...(row.data && {
+              onCancel: () => {
+                saveDraft(draftKey, null)
+                goTo(date)
+              }
+            })}
           />
         )}
       </Card>
@@ -83,9 +120,10 @@ export const UserSubmission = ({ profile, date, onDateChange }: Props): React.JS
               key={s.id}
               status={s}
               actions={
+                // The selected date's card above has its own Edit.
                 s.date !== date &&
                 canChange(s.date, profile.role) && (
-                  <Button variant="ghost" onClick={() => onDateChange(s.date)}>
+                  <Button variant="ghost" onClick={() => goTo(s.date, true)}>
                     {t('edit')}
                   </Button>
                 )
@@ -108,6 +146,7 @@ type FormProps = {
   row: DailyStatus | null
   onSaved: () => void
   onDiscard: () => void
+  onCancel?: () => void
 }
 
 const SubmissionForm = ({
@@ -115,7 +154,8 @@ const SubmissionForm = ({
   date,
   row,
   onSaved,
-  onDiscard
+  onDiscard,
+  onCancel
 }: FormProps): React.JSX.Element => {
   const { t, locale, lang } = useT()
   const key = `draft:${userId}:${date}`
@@ -206,10 +246,15 @@ const SubmissionForm = ({
       </div>
 
       {save.state === 'error' && <Notice tone="bad">{t(save.message)}</Notice>}
-      <div>
-        <Button type="submit" disabled={save.state === 'saving'}>
-          {save.state === 'saving' ? t('saving') : t(row ? 'saveChanges' : 'submit')}
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" busy={save.state === 'saving'}>
+          {t(row ? 'saveChanges' : 'submit')}
         </Button>
+        {onCancel && (
+          <Button variant="ghost" onClick={onCancel} disabled={save.state === 'saving'}>
+            {t('cancel')}
+          </Button>
+        )}
       </div>
     </form>
   )

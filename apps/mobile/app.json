@@ -44,7 +44,13 @@
       ],
       "expo-localization",
       "expo-secure-store",
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow Daily Status to use Face ID for fast and secure unlocking."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

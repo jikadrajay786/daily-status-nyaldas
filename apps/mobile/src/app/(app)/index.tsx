@@ -1,5 +1,6 @@
 import { bumpLive, useLiveQuery } from '@daily-status/core/live'
 import type { DailyStatus } from '@daily-status/core/database.types'
+import { fmtDate } from '@daily-status/core/format'
 import { useT, type Key } from '@daily-status/core/i18n'
 import { loadPlanBefore, parseDraft, type Draft } from '@daily-status/core/richText'
 import {
@@ -51,8 +52,15 @@ export default function Today(): React.JSX.Element {
   const { colors } = useTheme()
   const { fontScale } = useWindowDimensions()
   const profile = useProfile()
-  const date = validDate(useLocalSearchParams<{ date?: string }>().date) ?? today()
-  const setDate = (d: string): void => router.setParams({ date: d })
+  const params = useLocalSearchParams<{ date?: string; edit?: string }>()
+  const date = validDate(params.date) ?? today()
+  // `edit=1` opens the date's saved update straight in the form (History and Recent's Edit buttons).
+  const editing = params.edit === '1'
+  const [saved, setSaved] = useState<string | null>(null)
+  const setDate = (d: string, edit = false): void => {
+    setSaved(null)
+    router.setParams({ date: d, edit: edit ? '1' : '' })
+  }
 
   const [row, , rowRefreshing] = useLiveQuery(`mine:${profile.id}:${date}`, () =>
     getMyStatus(profile.id, date)
@@ -94,6 +102,9 @@ export default function Today(): React.JSX.Element {
   useEffect(() => () => clearTimeout(timer.current), [])
   const savedHours = String(form?.row?.hours_logged ?? 8)
   const locked = !!form?.row && !canChange(date, profile.role)
+  // Once submitted the form closes and empties; Edit reopens it filled with what was saved. An unsaved draft
+  // means someone was mid-edit when they left, so the form stays open with their words.
+  const closed = locked || (!!form?.row && !editing && !form.draft)
   const writeDraft = (html: string, hours: string): void =>
     prefs.set(draftKey, JSON.stringify({ html, hours } satisfies Draft))
   // Drafts are written on a short debounce: the OS can close the app at any moment.
@@ -135,6 +146,8 @@ export default function Today(): React.JSX.Element {
       prefs.remove(draftKey)
       if (date === today()) markToday(profile.id, true)
       setSave({ state: 'idle' })
+      router.setParams({ edit: '' })
+      setSaved(date)
       bumpLive()
     } catch (err) {
       setSave({ state: 'error', message: errMsg(err) })
@@ -144,6 +157,12 @@ export default function Today(): React.JSX.Element {
   const discard = (): void => {
     prefs.remove(draftKey)
     setResets((n) => n + 1)
+  }
+
+  const cancelEdit = (): void => {
+    editor.current?.blur()
+    discard()
+    setDate(date)
   }
 
   return (
@@ -163,13 +182,28 @@ export default function Today(): React.JSX.Element {
                 <StatusCard status={form.row} />
               </>
             )}
+            {closed && !locked && form.row && (
+              <>
+                {saved === date && (
+                  <Notice tone="ok">{t('savedDone', { date: fmtDate(date, locale) })}</Notice>
+                )}
+                <StatusCard
+                  status={form.row}
+                  actions={
+                    <Button variant="ghost" onPress={() => setDate(date, true)}>
+                      {t('edit')}
+                    </Button>
+                  }
+                />
+              </>
+            )}
             {/* Locked dates collapse the form instead of removing it: unmounting (or display:none, which Fabric
                 also detaches) tears down the editor's WebView while its calls are in flight. */}
             <View
-              style={[s.form, locked && s.collapsed]}
-              pointerEvents={locked ? 'none' : 'auto'}
-              accessibilityElementsHidden={locked}
-              importantForAccessibility={locked ? 'no-hide-descendants' : 'auto'}
+              style={[s.form, closed && s.collapsed]}
+              pointerEvents={closed ? 'none' : 'auto'}
+              accessibilityElementsHidden={closed}
+              importantForAccessibility={closed ? 'no-hide-descendants' : 'auto'}
             >
               <View style={s.badges}>
                 <Badge
@@ -230,6 +264,11 @@ export default function Today(): React.JSX.Element {
               <Button onPress={submit} disabled={save.state === 'saving'}>
                 {save.state === 'saving' ? t('saving') : t(form.row ? 'saveChanges' : 'submit')}
               </Button>
+              {form.row && (
+                <Button variant="ghost" onPress={cancelEdit} disabled={save.state === 'saving'}>
+                  {t('cancel')}
+                </Button>
+              )}
             </View>
           </>
         )}
@@ -252,9 +291,10 @@ export default function Today(): React.JSX.Element {
             key={st.id}
             status={st}
             actions={
+              // The selected date's card above has its own Edit.
               st.date !== date &&
               canChange(st.date, profile.role) && (
-                <Button variant="ghost" onPress={() => setDate(st.date)}>
+                <Button variant="ghost" onPress={() => setDate(st.date, true)}>
                   {t('edit')}
                 </Button>
               )

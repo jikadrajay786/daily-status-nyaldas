@@ -111,7 +111,9 @@ export default function History(): React.JSX.Element {
                 <>
                   <Button
                     variant="ghost"
-                    onPress={() => router.navigate({ pathname: '/', params: { date: st.date } })}
+                    onPress={() =>
+                      router.navigate({ pathname: '/', params: { date: st.date, edit: '1' } })
+                    }
                   >
                     {t('edit')}
                   </Button>

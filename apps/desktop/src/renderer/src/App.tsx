@@ -27,20 +27,28 @@ const Splash = ({ children }: { children: ReactNode }): React.JSX.Element => (
 const Workspace = ({ profile }: { profile: Profile }): React.JSX.Element => {
   const [view, setView] = useState<View>('today')
   useRealtimeSync(profile.id)
-  const [date, setDate] = useState(today)
+  // `edit` opens the date's saved update straight in the form (History and Recent's Edit buttons).
+  const [day, setDay] = useState(() => ({ date: today(), edit: false }))
   // Falls back if the role changes mid-session; RLS is what actually hides team data.
   const active = canSee(view, profile.role) ? view : 'today'
 
   const page = ((): React.JSX.Element => {
     switch (active) {
       case 'today':
-        return <UserSubmission profile={profile} date={date} onDateChange={setDate} />
+        return (
+          <UserSubmission
+            profile={profile}
+            date={day.date}
+            editing={day.edit}
+            onChange={(date, edit) => setDay({ date, edit })}
+          />
+        )
       case 'history':
         return (
           <StatusHistory
             profile={profile}
             onEdit={(d) => {
-              setDate(d)
+              setDay({ date: d, edit: true })
               setView('today')
             }}
           />

@@ -1,4 +1,5 @@
 import { nameOf } from '@daily-status/core/format'
+import { unlockMessage } from '@daily-status/core/appLock'
 import { LANG_LIST, LANGS, useT, type Key } from '@daily-status/core/i18n'
 import { db } from '@daily-status/core/supabase'
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
@@ -16,6 +17,7 @@ import {
   View
 } from 'react-native'
 import { Button, Card, Link, Notice, Screen, Segmented, Title } from '@/components/ui'
+import { askToUnlock, checkSupport, setLockOn, useLockOn, type Support } from '@/lib/appLock'
 import { useProfile } from '@/lib/profile'
 import { setReminderOn, setReminderTime, useReminder } from '@/lib/reminder'
 import { PALETTES, THEMES, useTheme, type Theme } from '@/lib/theme'
@@ -55,6 +57,9 @@ export default function Settings(): React.JSX.Element {
       </Section>
       <Section title={t('reminder')}>
         <Reminder />
+      </Section>
+      <Section title={t('lockSection')}>
+        <AppLockSetting />
       </Section>
       <Button variant="ghost" onPress={() => void db().auth.signOut()}>
         {t('signOut')}
@@ -132,6 +137,70 @@ const Swatch = ({ theme }: { theme: Theme }): React.JSX.Element => {
         </View>
       ))}
     </View>
+  )
+}
+
+const AppLockSetting = (): React.JSX.Element => {
+  const { t } = useT()
+  const { colors: c } = useTheme()
+  const { id } = useProfile()
+  const on = useLockOn(id)
+  const [support, setSupport] = useState<Support | null>(null)
+  const [message, setMessage] = useState<Key | null>(null)
+  const [busy, setBusy] = useState(false)
+  const usable = !!support?.hardware && support.enrolled
+  const method = t(support?.method ?? 'methodFaceId')
+
+  // Re-checked on return, since Face ID and fingerprints are set up in the phone's Settings app.
+  useEffect(() => {
+    const check = (): void => void checkSupport().then(setSupport, () => setSupport(null))
+    check()
+    const sub = AppState.addEventListener('change', (st) => st === 'active' && check())
+    return () => sub.remove()
+  }, [])
+
+  // Turning it on needs a successful scan first, so nobody can switch on a lock they can't open. Turning it off
+  // needs none: the app is already open, and it only removes protection the person chose.
+  const toggle = async (next: boolean): Promise<void> => {
+    setMessage(null)
+    if (!next) return setLockOn(id, false)
+    setBusy(true)
+    try {
+      const res = await askToUnlock(t, t('lockConfirm', { method }))
+      if (res.success) setLockOn(id, true)
+      else setMessage(unlockMessage(res.error))
+    } catch {
+      setMessage('lockFailed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card>
+      <View style={s.switchRow}>
+        <View style={s.grow}>
+          <Text style={[s.name, { color: c.fg }]}>{t('lockToggle', { method })}</Text>
+          <Text style={[s.hint, { color: c.fg3 }]}>{t('lockToggleHint', { method })}</Text>
+        </View>
+        <Switch
+          accessibilityLabel={t('lockToggle', { method })}
+          accessibilityHint={t('lockToggleHint', { method })}
+          // Always switchable off, even if Face ID was removed meanwhile.
+          disabled={busy || (!on && !usable)}
+          value={on}
+          onValueChange={(v) => void toggle(v)}
+          trackColor={{ false: c.line, true: c.accent }}
+          thumbColor={Platform.OS === 'android' ? (on ? c.onAccent : c.fg3) : undefined}
+          ios_backgroundColor={c.line}
+        />
+      </View>
+      {support && !support.hardware && <Notice>{t('lockNoHardware')}</Notice>}
+      {support?.hardware && !support.enrolled && (
+        <Notice>{t('lockNotEnrolled', { method })}</Notice>
+      )}
+      {message && <Notice tone="bad">{t(message, { method })}</Notice>}
+    </Card>
   )
 }
 

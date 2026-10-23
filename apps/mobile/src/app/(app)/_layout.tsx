@@ -1,5 +1,7 @@
 import { useT } from '@daily-status/core/i18n'
 import { useRealtimeSync } from '@daily-status/core/live'
+import { AppLockGate } from '@/components/AppLock'
+import { useAppLock } from '@/lib/appLock'
 import { Tabs } from 'expo-router/js-tabs'
 import {
   CalendarCheck,
@@ -24,25 +26,34 @@ export default function AppLayout(): React.JSX.Element {
   const { id, role } = useProfile()
   useReminders(id, lang)
   useRealtimeSync(id)
+  const lock = useAppLock(id)
   return (
-    <Tabs tabBar={(props) => <LiquidTabBar {...props} />} screenOptions={{ headerShown: false }}>
-      <Tabs.Screen
-        name="index"
-        options={{ title: t('navToday'), tabBarIcon: icon(CalendarCheck) }}
-      />
-      <Tabs.Screen name="history" options={{ title: t('navHistory'), tabBarIcon: icon(History) }} />
-      {/* Admins hand out tasks and never receive them. */}
-      <Tabs.Protected guard={role !== 'admin'}>
-        <Tabs.Screen name="tasks" options={{ title: t('navTasks'), tabBarIcon: icon(ListTodo) }} />
-      </Tabs.Protected>
-      {/* Hidden for non-admins; RLS is what actually keeps team data from them. */}
-      <Tabs.Protected guard={role === 'admin'}>
-        <Tabs.Screen name="team" options={{ title: t('navTeam'), tabBarIcon: icon(Users) }} />
-      </Tabs.Protected>
-      <Tabs.Screen
-        name="settings"
-        options={{ title: t('navSettings'), tabBarIcon: icon(Settings) }}
-      />
-    </Tabs>
+    <AppLockGate userId={id} lock={lock}>
+      <Tabs tabBar={(props) => <LiquidTabBar {...props} />} screenOptions={{ headerShown: false }}>
+        <Tabs.Screen
+          name="index"
+          options={{ title: t('navToday'), tabBarIcon: icon(CalendarCheck) }}
+        />
+        <Tabs.Screen
+          name="history"
+          options={{ title: t('navHistory'), tabBarIcon: icon(History) }}
+        />
+        {/* Admins hand out tasks and never receive them. */}
+        <Tabs.Protected guard={role !== 'admin'}>
+          <Tabs.Screen
+            name="tasks"
+            options={{ title: t('navTasks'), tabBarIcon: icon(ListTodo) }}
+          />
+        </Tabs.Protected>
+        {/* Hidden for non-admins; RLS is what actually keeps team data from them. */}
+        <Tabs.Protected guard={role === 'admin'}>
+          <Tabs.Screen name="team" options={{ title: t('navTeam'), tabBarIcon: icon(Users) }} />
+        </Tabs.Protected>
+        <Tabs.Screen
+          name="settings"
+          options={{ title: t('navSettings'), tabBarIcon: icon(Settings) }}
+        />
+      </Tabs>
+    </AppLockGate>
   )
 }

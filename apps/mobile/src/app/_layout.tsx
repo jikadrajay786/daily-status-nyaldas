@@ -1,4 +1,6 @@
 import { supabase } from '@/lib/supabase'
+// Registers its sign-in listener before anyone can sign in (see freshSignIn).
+import '@/lib/appLock'
 import { I18nContext, LOCALE, translator, useT, type I18n } from '@daily-status/core/i18n'
 import { db } from '@daily-status/core/supabase'
 import { useAuth } from '@daily-status/core/useAuth'
