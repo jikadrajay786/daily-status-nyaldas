@@ -286,6 +286,23 @@
       opacity: 0;
     }
   }
+  --animate-shake: shake 0.36s var(--ease-exit);
+  --animate-caret: caret 1s steps(1) infinite;
+  @keyframes shake {
+    20%,
+    60% {
+      transform: translateX(-6px);
+    }
+    40%,
+    80% {
+      transform: translateX(6px);
+    }
+  }
+  @keyframes caret {
+    50% {
+      opacity: 0;
+    }
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

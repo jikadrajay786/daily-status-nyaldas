@@ -32,6 +32,8 @@ const en = {
   otherEmail: 'Use a different email',
   checkSpam: "Can't find it? Check your spam folder.",
   vCode: 'Please enter the 6-digit code.',
+  checkingCode: 'Checking your code…',
+  codeHint: 'Type or paste the code. It is checked as soon as all 6 digits are in.',
   errCodeInvalid: 'That code is wrong or has expired. Check your latest email or send a new code.',
   errWeakPassword: 'Please choose a stronger password (at least 6 characters).',
   errInvalidEmail: "That email address doesn't look right.",
@@ -337,6 +339,8 @@ const hi: Dict = {
   otherEmail: 'दूसरा ईमेल इस्तेमाल करें',
   checkSpam: 'नहीं मिला? स्पैम फ़ोल्डर देखें।',
   vCode: 'कृपया 6 अंकों का कोड लिखें।',
+  checkingCode: 'आपका कोड जाँचा जा रहा है…',
+  codeHint: 'कोड लिखें या पेस्ट करें। सभी 6 अंक भरते ही यह अपने-आप जाँचा जाएगा।',
   errCodeInvalid:
     'यह कोड गलत है या इसकी समय-सीमा खत्म हो गई है। अपना नया ईमेल देखें या नया कोड भेजें।',
   errWeakPassword: 'कृपया ज़्यादा मज़बूत पासवर्ड चुनें (कम से कम 6 अक्षर)।',
@@ -628,6 +632,8 @@ const gu: Dict = {
   otherEmail: 'બીજો ઈમેલ વાપરો',
   checkSpam: 'મળતો નથી? સ્પામ ફોલ્ડર જુઓ.',
   vCode: 'કૃપા કરીને 6 અંકનો કોડ લખો.',
+  checkingCode: 'તમારો કોડ તપાસાઈ રહ્યો છે…',
+  codeHint: 'કોડ લખો અથવા પેસ્ટ કરો. બધા 6 અંક ભરાતાં જ તે આપોઆપ તપાસાશે.',
   errCodeInvalid:
     'આ કોડ ખોટો છે અથવા તેની સમય-મર્યાદા પૂરી થઈ ગઈ છે. તમારો નવો ઈમેલ જુઓ અથવા નવો કોડ મોકલો.',
   errWeakPassword: 'કૃપા કરીને વધુ મજબૂત પાસવર્ડ પસંદ કરો (ઓછામાં ઓછા 6 અક્ષર).',
