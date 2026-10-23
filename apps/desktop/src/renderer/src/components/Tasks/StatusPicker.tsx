@@ -1,3 +1,4 @@
+import { LoaderCircle } from 'lucide-react'
 import { useState } from 'react'
 import type { Task, TaskStatus } from '@daily-status/core/database.types'
 import { useT } from '@daily-status/core/i18n'
@@ -46,6 +47,9 @@ export const StatusPicker = ({
               shown === s ? PICKED[STATUS_TONE[s]] : 'text-fg-2 ring-line hover:bg-hover'
             }`}
           >
+            {busy && shown === s && (
+              <LoaderCircle aria-hidden className="mr-1 inline size-3 animate-spin align-[-2px]" />
+            )}
             {t(STATUS_KEY[s])}
           </button>
         ))}

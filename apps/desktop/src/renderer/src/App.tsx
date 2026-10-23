@@ -16,6 +16,7 @@ import { canSee, type View } from './lib/nav'
 import { db, today } from '@daily-status/core/supabase'
 import { supabase } from './lib/supabase'
 import { useAuth } from '@daily-status/core/useAuth'
+import { useBusy } from '@daily-status/core/useBusy'
 import { useRealtimeSync } from '@daily-status/core/live'
 
 const Splash = ({ children }: { children: ReactNode }): React.JSX.Element => (
@@ -81,6 +82,7 @@ const Workspace = ({ profile }: { profile: Profile }): React.JSX.Element => {
 const Main = (): React.JSX.Element => {
   const { t } = useT()
   const auth = useAuth()
+  const [leaving, leave] = useBusy()
   switch (auth.state) {
     case 'loading':
       return <AppSkeleton />
@@ -92,7 +94,11 @@ const Main = (): React.JSX.Element => {
           <Notice tone="bad">{t(auth.message)}</Notice>
           <div className="flex gap-2">
             <Button onClick={auth.retry}>{t('tryAgain')}</Button>
-            <Button variant="ghost" onClick={() => db().auth.signOut()}>
+            <Button
+              variant="ghost"
+              busy={leaving}
+              onClick={() => void leave(() => db().auth.signOut())}
+            >
               {t('signOut')}
             </Button>
           </div>

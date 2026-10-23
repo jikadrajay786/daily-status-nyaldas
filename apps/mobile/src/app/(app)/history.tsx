@@ -1,3 +1,4 @@
+import { useBusy } from '@daily-status/core/useBusy'
 import { bumpLive, useLiveQuery } from '@daily-status/core/live'
 import type { DailyStatus } from '@daily-status/core/database.types'
 import { useT, type Key } from '@daily-status/core/i18n'
@@ -29,16 +30,18 @@ export default function History(): React.JSX.Element {
   const [pulling, setPulling] = useState(false)
   if (pulling && list.state !== 'loading' && !refreshing) setPulling(false)
 
-  const remove = async (st: DailyStatus): Promise<void> => {
-    try {
-      await deleteStatus(st.id)
-      if (st.date === today()) markToday(st.user_id, false)
-      setError(undefined)
-      bumpLive()
-    } catch (err) {
-      setError(errMsg(err))
-    }
-  }
+  const [deleting, runDelete] = useBusy()
+  const remove = (st: DailyStatus): Promise<void> =>
+    runDelete(async () => {
+      try {
+        await deleteStatus(st.id)
+        if (st.date === today()) markToday(st.user_id, false)
+        setError(undefined)
+        bumpLive()
+      } catch (err) {
+        setError(errMsg(err))
+      }
+    })
 
   return (
     // A FlatList rather than the shared ScrollView screen: a year of updates is too many cards to render at once.
@@ -103,7 +106,7 @@ export default function History(): React.JSX.Element {
                   <Button variant="ghost" onPress={() => setConfirming(undefined)}>
                     {t('cancel')}
                   </Button>
-                  <Button variant="danger" onPress={() => void remove(st)}>
+                  <Button variant="danger" busy={deleting} onPress={() => void remove(st)}>
                     {t('yesDelete')}
                   </Button>
                 </>

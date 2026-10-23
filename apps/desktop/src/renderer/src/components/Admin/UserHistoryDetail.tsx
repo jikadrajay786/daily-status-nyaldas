@@ -1,4 +1,5 @@
 import { Flame } from 'lucide-react'
+import { useBusy } from '@daily-status/core/useBusy'
 import { useId, useState } from 'react'
 import {
   getIndividualUserHistory,
@@ -64,16 +65,18 @@ export const UserHistoryDetail = ({ person, version, onChanged }: Props): React.
     setPreset(p)
   }
 
-  const remove = async (id: string): Promise<void> => {
-    try {
-      await deleteStatus(id)
-      setError(undefined)
-      setConfirming(undefined)
-      onChanged()
-    } catch (err) {
-      setError(errMsg(err))
-    }
-  }
+  const [deleting, runDelete] = useBusy()
+  const remove = (id: string): Promise<void> =>
+    runDelete(async () => {
+      try {
+        await deleteStatus(id)
+        setError(undefined)
+        setConfirming(undefined)
+        onChanged()
+      } catch (err) {
+        setError(errMsg(err))
+      }
+    })
 
   return (
     <>
@@ -262,7 +265,7 @@ export const UserHistoryDetail = ({ person, version, onChanged }: Props): React.
                         <Button variant="ghost" onClick={() => setConfirming(undefined)}>
                           {t('cancel')}
                         </Button>
-                        <Button variant="danger" onClick={() => remove(s.id)}>
+                        <Button variant="danger" busy={deleting} onClick={() => remove(s.id)}>
                           {t('yesDelete')}
                         </Button>
                       </>

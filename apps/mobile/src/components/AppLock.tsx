@@ -1,3 +1,4 @@
+import { useBusy } from '@daily-status/core/useBusy'
 import { unlockMessage } from '@daily-status/core/appLock'
 import { useT, type Key } from '@daily-status/core/i18n'
 import { db } from '@daily-status/core/supabase'
@@ -76,11 +77,12 @@ const LockScreen = ({
     return () => sub.remove()
   }, [])
 
+  const [leaving, leave] = useBusy()
   const usePassword = (): void => {
     // Leaving through the password also switches the lock off when Face ID or fingerprint is gone, so it doesn't
     // block the next launch the same way.
     if (message === 'lockGone') setLockOn(userId, false)
-    void db().auth.signOut()
+    void leave(() => db().auth.signOut())
   }
 
   return (
@@ -97,7 +99,9 @@ const LockScreen = ({
             {t('unlock')}
           </Button>
         )}
-        <Link onPress={usePassword}>{t('usePassword')}</Link>
+        <Link onPress={usePassword} busy={leaving}>
+          {t('usePassword')}
+        </Link>
       </View>
     </SafeAreaView>
   )

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useBusy } from '@daily-status/core/useBusy'
 import type { DailyStatus, Profile } from '@daily-status/core/database.types'
 import { useT, type Key } from '@daily-status/core/i18n'
 import { canChange, deleteStatus, listMyStatuses } from '@daily-status/core/statusService'
@@ -21,15 +22,17 @@ export const StatusHistory = ({ profile, onEdit }: Props): React.JSX.Element => 
   const [confirming, setConfirming] = useState<string>()
   const [error, setError] = useState<Key>()
 
-  const remove = async (s: DailyStatus): Promise<void> => {
-    try {
-      await deleteStatus(s.id)
-      setError(undefined)
-      reload()
-    } catch (err) {
-      setError(errMsg(err))
-    }
-  }
+  const [deleting, runDelete] = useBusy()
+  const remove = (s: DailyStatus): Promise<void> =>
+    runDelete(async () => {
+      try {
+        await deleteStatus(s.id)
+        setError(undefined)
+        reload()
+      } catch (err) {
+        setError(errMsg(err))
+      }
+    })
 
   return (
     <>
@@ -76,7 +79,7 @@ export const StatusHistory = ({ profile, onEdit }: Props): React.JSX.Element => 
                     <Button variant="ghost" onClick={() => setConfirming(undefined)}>
                       {t('cancel')}
                     </Button>
-                    <Button variant="danger" onClick={() => remove(s)}>
+                    <Button variant="danger" busy={deleting} onClick={() => remove(s)}>
                       {t('yesDelete')}
                     </Button>
                   </>

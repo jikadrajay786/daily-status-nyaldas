@@ -261,8 +261,8 @@ export default function Today(): React.JSX.Element {
                 {...(hoursErr && { error: hoursErr })}
               />
               {save.state === 'error' && <Notice tone="bad">{t(save.message)}</Notice>}
-              <Button onPress={submit} disabled={save.state === 'saving'}>
-                {save.state === 'saving' ? t('saving') : t(form.row ? 'saveChanges' : 'submit')}
+              <Button onPress={submit} busy={save.state === 'saving'}>
+                {t(form.row ? 'saveChanges' : 'submit')}
               </Button>
               {form.row && (
                 <Button variant="ghost" onPress={cancelEdit} disabled={save.state === 'saving'}>

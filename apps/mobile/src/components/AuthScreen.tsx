@@ -150,10 +150,8 @@ export const AuthScreen = (): React.JSX.Element => {
             onSubmitEditing={submit}
           />
           {phase.state === 'error' && <Notice tone="bad">{t(phase.message)}</Notice>}
-          <Button onPress={submit} disabled={phase.state === 'busy'}>
-            {phase.state === 'busy'
-              ? t('pleaseWait')
-              : t(mode === 'sign-in' ? 'signIn' : 'createAccount')}
+          <Button onPress={submit} busy={phase.state === 'busy'}>
+            {t(mode === 'sign-in' ? 'signIn' : 'createAccount')}
           </Button>
           <View style={s.switch}>
             <Text style={[s.switchText, { color: colors.fg2 }]}>

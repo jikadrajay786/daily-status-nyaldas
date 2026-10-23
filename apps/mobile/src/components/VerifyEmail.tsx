@@ -1,3 +1,4 @@
+import { useAnnounce } from '@/lib/announce'
 import { useT } from '@daily-status/core/i18n'
 import { useVerifyCode } from '@daily-status/core/useVerifyCode'
 import * as Haptics from 'expo-haptics'
@@ -18,6 +19,8 @@ export const VerifyEmail = ({ email, password, justSent, onBack }: Props): React
   useEffect(() => {
     if (rejected) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
   }, [rejected])
+  // The Verify button's spinner shows it visually; screen readers are told in words.
+  useAnnounce(phase.state === 'checking' ? t('checkingCode') : undefined)
 
   return (
     <>
@@ -34,17 +37,17 @@ export const VerifyEmail = ({ email, password, justSent, onBack }: Props): React
         rejected={rejected}
       />
       <Text style={[s.small, { color: colors.fg3 }]}>{t('codeHint')}</Text>
-      {phase.state === 'checking' && (
-        <Text accessibilityLiveRegion="polite" style={[s.status, { color: colors.fg2 }]}>
-          {t('checkingCode')}
-        </Text>
-      )}
       {phase.state === 'error' && <Notice tone="bad">{t(phase.message)}</Notice>}
       {phase.state === 'sent' && <Notice tone="ok">{t('codeSent')}</Notice>}
-      <Button onPress={otp.submit} disabled={otp.busy}>
-        {phase.state === 'checking' ? t('checkingCode') : t('verify')}
+      <Button onPress={otp.submit} busy={phase.state === 'checking'} disabled={otp.busy}>
+        {t('verify')}
       </Button>
-      <Button variant="ghost" disabled={otp.wait > 0 || otp.busy} onPress={otp.resend}>
+      <Button
+        variant="ghost"
+        busy={phase.state === 'resending'}
+        disabled={otp.wait > 0 || otp.busy}
+        onPress={otp.resend}
+      >
         {otp.wait > 0 ? t('resendIn', { s: otp.wait }) : t('resend')}
       </Button>
       <Text style={[s.small, { color: colors.fg3 }]}>{t('checkSpam')}</Text>
@@ -54,6 +57,5 @@ export const VerifyEmail = ({ email, password, justSent, onBack }: Props): React
 }
 
 const s = StyleSheet.create({
-  small: { fontSize: 13, textAlign: 'center' },
-  status: { fontSize: 15, textAlign: 'center' }
+  small: { fontSize: 13, textAlign: 'center' }
 })

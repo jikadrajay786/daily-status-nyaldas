@@ -145,10 +145,10 @@ const Form = ({
       />
       {save.state === 'error' && <Notice tone="bad">{t(save.message)}</Notice>}
       <View style={s.actions}>
-        <Button onPress={submit} disabled={save.state === 'saving'}>
-          {save.state === 'saving' ? t('saving') : t('saveChanges')}
+        <Button onPress={submit} busy={save.state === 'saving'}>
+          {t('saveChanges')}
         </Button>
-        <Button variant="ghost" onPress={() => router.back()}>
+        <Button variant="ghost" onPress={() => router.back()} disabled={save.state === 'saving'}>
           {t('cancel')}
         </Button>
       </View>

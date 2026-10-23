@@ -72,10 +72,10 @@ export const StatusEditForm = ({ status, name, onSaved, onCancel }: Props): Reac
         </div>
         {save.state === 'error' && <Notice tone="bad">{t(save.message)}</Notice>}
         <div className="flex gap-2">
-          <Button type="submit" disabled={save.state === 'saving'}>
-            {save.state === 'saving' ? t('saving') : t('saveChanges')}
+          <Button type="submit" busy={save.state === 'saving'}>
+            {t('saveChanges')}
           </Button>
-          <Button variant="ghost" onClick={onCancel}>
+          <Button variant="ghost" onClick={onCancel} disabled={save.state === 'saving'}>
             {t('cancel')}
           </Button>
         </div>

@@ -1,3 +1,4 @@
+import { useBusy } from '@daily-status/core/useBusy'
 import { bumpLive, useLiveQuery } from '@daily-status/core/live'
 import {
   getIndividualUserHistory,
@@ -74,6 +75,7 @@ export default function Person(): React.JSX.Element {
     [dir, metrics, history, streak].some((x) => x.state === 'loading') || r1 || r2 || r3 || r4
   const pull = usePullToRefresh(loading, bumpLive)
   const [confirming, setConfirming] = useState<string>()
+  const [deleting, runDelete] = useBusy()
   const [error, setError] = useState<Key>()
 
   const person = dir.state === 'ok' ? dir.data.find((p) => p.id === id) : undefined
@@ -94,16 +96,17 @@ export default function Person(): React.JSX.Element {
     setPreset(p)
   }
 
-  const remove = async (statusId: string): Promise<void> => {
-    try {
-      await deleteStatus(statusId)
-      setError(undefined)
-      setConfirming(undefined)
-      bumpLive()
-    } catch (err) {
-      setError(errMsg(err))
-    }
-  }
+  const remove = (statusId: string): Promise<void> =>
+    runDelete(async () => {
+      try {
+        await deleteStatus(statusId)
+        setError(undefined)
+        setConfirming(undefined)
+        bumpLive()
+      } catch (err) {
+        setError(errMsg(err))
+      }
+    })
 
   return (
     <View style={[s.fill, { backgroundColor: c.canvas }]}>
@@ -265,7 +268,7 @@ export default function Person(): React.JSX.Element {
                     <Button variant="ghost" onPress={() => setConfirming(undefined)}>
                       {t('cancel')}
                     </Button>
-                    <Button variant="danger" onPress={() => void remove(st.id)}>
+                    <Button variant="danger" busy={deleting} onPress={() => void remove(st.id)}>
                       {t('yesDelete')}
                     </Button>
                   </>

@@ -12,7 +12,7 @@ import { useUpdateTaskStatus } from '@daily-status/core/useTasks'
 import * as Haptics from 'expo-haptics'
 import { Check } from 'lucide-react-native'
 import { useRef, useState } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
 import ReanimatedSwipeable, {
   type SwipeableMethods
 } from 'react-native-gesture-handler/ReanimatedSwipeable'
@@ -81,11 +81,13 @@ const Option = ({
   status,
   picked,
   disabled,
+  saving,
   onPress
 }: {
   status: TaskStatus
   picked: boolean
   disabled: boolean
+  saving: boolean
   onPress: () => void
 }): React.JSX.Element => {
   const { t } = useT()
@@ -108,9 +110,12 @@ const Option = ({
       onPressOut={() => scale.set(withSpring(1, SPRING))}
       style={[s.option, style]}
     >
-      <Text style={[s.optionText, { color: picked ? tone.fg : c.fg2 }]}>
-        {t(STATUS_KEY[status])}
-      </Text>
+      <View style={s.optionInner}>
+        {saving && <ActivityIndicator size="small" color={tone.fg} />}
+        <Text style={[s.optionText, { color: picked ? tone.fg : c.fg2 }]}>
+          {t(STATUS_KEY[status])}
+        </Text>
+      </View>
     </AnimatedPressable>
   )
 }
@@ -191,6 +196,7 @@ export const TaskCard = ({ task, index }: { task: Task; index: number }): React.
                     status={st}
                     picked={shown === st}
                     disabled={busy}
+                    saving={busy && shown === st}
                     onPress={() => void pick(st)}
                   />
                 ))}
@@ -225,6 +231,7 @@ const s = StyleSheet.create({
     alignItems: 'center'
   },
   optionText: { fontSize: 15, fontWeight: '600', textAlign: 'center' },
+  optionInner: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   action: {
     flex: 1,
     borderRadius: 14,

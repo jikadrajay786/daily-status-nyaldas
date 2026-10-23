@@ -1,8 +1,10 @@
 import type { Profile } from '@daily-status/core/database.types'
+import { useBusy } from '@daily-status/core/useBusy'
 import { nameOf } from '@daily-status/core/format'
 import { useT } from '@daily-status/core/i18n'
 import { db } from '@daily-status/core/supabase'
 import { canSee, NAV, type View } from '../lib/nav'
+import { LoaderCircle } from 'lucide-react'
 import { Badge, LangSwitch } from './ui'
 
 type Props = { view: View; profile: Profile; onNavigate: (v: View) => void }
@@ -10,6 +12,7 @@ type Props = { view: View; profile: Profile; onNavigate: (v: View) => void }
 export const Sidebar = ({ view, profile, onNavigate }: Props): React.JSX.Element => {
   const { t } = useT()
   const admin = profile.role === 'admin'
+  const [leaving, leave] = useBusy()
   // Width capped so the largest text sizes still leave room for the page.
   return (
     <aside className="flex w-60 max-w-[30vw] shrink-0 flex-col overflow-y-auto border-r border-line bg-panel p-4">
@@ -45,9 +48,12 @@ export const Sidebar = ({ view, profile, onNavigate }: Props): React.JSX.Element
         </div>
         <button
           type="button"
-          onClick={() => db().auth.signOut()}
-          className="w-full rounded-lg px-3 py-2 text-left text-sm text-fg-2 hover:bg-hover hover:text-fg"
+          disabled={leaving}
+          aria-busy={leaving || undefined}
+          onClick={() => void leave(() => db().auth.signOut())}
+          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-fg-2 hover:bg-hover hover:text-fg disabled:cursor-wait"
         >
+          {leaving && <LoaderCircle aria-hidden className="size-4 animate-spin" />}
           {t('signOut')}
         </button>
       </div>

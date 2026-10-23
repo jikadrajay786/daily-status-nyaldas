@@ -1,3 +1,4 @@
+import { useBusy } from '@daily-status/core/useBusy'
 import { nameOf } from '@daily-status/core/format'
 import { unlockMessage } from '@daily-status/core/appLock'
 import { LANG_LIST, LANGS, useT, type Key } from '@daily-status/core/i18n'
@@ -41,6 +42,7 @@ const toTime = (d: Date): string =>
 export default function Settings(): React.JSX.Element {
   const { t, lang, setLang } = useT()
   const profile = useProfile()
+  const [leaving, leave] = useBusy()
   return (
     <Screen>
       <Title sub={profile.email ?? undefined}>{nameOf(profile)}</Title>
@@ -61,7 +63,7 @@ export default function Settings(): React.JSX.Element {
       <Section title={t('lockSection')}>
         <AppLockSetting />
       </Section>
-      <Button variant="ghost" onPress={() => void db().auth.signOut()}>
+      <Button variant="ghost" busy={leaving} onPress={() => void leave(() => db().auth.signOut())}>
         {t('signOut')}
       </Button>
     </Screen>

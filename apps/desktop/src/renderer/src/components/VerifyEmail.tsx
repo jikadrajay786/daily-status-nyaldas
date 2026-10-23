@@ -43,8 +43,8 @@ export const VerifyEmail = ({ email, password, justSent, onBack }: Props): React
         </p>
       </div>
 
-      {/* Polite, so a screen reader hears "checking" once; the error Notice is an alert and interrupts. */}
-      <p aria-live="polite" className="text-center text-sm text-fg-2 empty:hidden">
+      {/* The Verify button's spinner shows it visually; screen readers hear it in words, once. */}
+      <p aria-live="polite" className="sr-only">
         {phase.state === 'checking' && t('checkingCode')}
       </p>
       {phase.state === 'error' && <Notice tone="bad">{t(phase.message)}</Notice>}

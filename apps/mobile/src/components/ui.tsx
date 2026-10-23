@@ -2,6 +2,7 @@ import type { Tone } from '@daily-status/core/format'
 import { useT } from '@daily-status/core/i18n'
 import { useEffect, useState, type ReactNode, type Ref } from 'react'
 import {
+  ActivityIndicator,
   Animated,
   KeyboardAvoidingView,
   Pressable,
@@ -77,16 +78,19 @@ export const Title = ({
 
 const BUTTON_HEIGHT = 48
 
+// `busy` keeps the label (so the button never changes size) and puts a spinner in front of it.
 export const Button = ({
   children,
   onPress,
   variant = 'primary',
-  disabled
+  disabled,
+  busy = false
 }: {
   children: string
   onPress: () => void
   variant?: 'primary' | 'ghost' | 'danger'
   disabled?: boolean
+  busy?: boolean
 }): React.JSX.Element => {
   const { colors: c } = useTheme()
   const [bg, pressed, fg, line] = {
@@ -97,15 +101,22 @@ export const Button = ({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ disabled: !!disabled }}
-      disabled={disabled}
+      accessibilityState={{ disabled: !!disabled || busy, busy }}
+      disabled={disabled || busy}
       onPress={onPress}
       style={({ pressed: p }) => [
         s.button,
-        { backgroundColor: p ? pressed : bg, borderColor: line, opacity: disabled ? 0.4 : 1 }
+        {
+          backgroundColor: p ? pressed : bg,
+          borderColor: line,
+          opacity: disabled && !busy ? 0.4 : busy ? 0.85 : 1
+        }
       ]}
     >
-      <Text style={[s.buttonText, { color: fg }]}>{children}</Text>
+      <View style={s.buttonInner}>
+        {busy && <ActivityIndicator size="small" color={fg} />}
+        <Text style={[s.buttonText, { color: fg }]}>{children}</Text>
+      </View>
     </Pressable>
   )
 }
@@ -175,15 +186,26 @@ export const Notice = ({
 
 export const Link = ({
   children,
-  onPress
+  onPress,
+  busy = false
 }: {
   children: string
   onPress: () => void
+  busy?: boolean
 }): React.JSX.Element => {
   const { colors } = useTheme()
   return (
-    <Pressable accessibilityRole="link" onPress={onPress} hitSlop={12}>
-      <Text style={[s.link, { color: colors.accentFg }]}>{children}</Text>
+    <Pressable
+      accessibilityRole="link"
+      accessibilityState={{ busy, disabled: busy }}
+      disabled={busy}
+      onPress={onPress}
+      hitSlop={12}
+    >
+      <View style={s.buttonInner}>
+        {busy && <ActivityIndicator size="small" color={colors.accentFg} />}
+        <Text style={[s.link, { color: colors.accentFg }]}>{children}</Text>
+      </View>
     </Pressable>
   )
 }
@@ -362,6 +384,7 @@ const s = StyleSheet.create({
     alignItems: 'center'
   },
   buttonText: { fontSize: 16, fontWeight: '600', textAlign: 'center' },
+  buttonInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   field: { gap: 6 },
   label: { fontSize: 14, fontWeight: '500' },
   input: {
