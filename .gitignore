@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+target/
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Build output
+out/
+dist/
+release/
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Test artifacts
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+.pytest_cache/
+junit*.xml
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+
+# Claude local-only settings
+.claude/settings.local.json
+
+# Tooling caches
+.eslintcache
+
+# Supabase CLI local cache (linked project ref, CLI version)
+supabase/.temp/

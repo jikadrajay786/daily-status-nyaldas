@@ -1,0 +1,157 @@
+/* Shared by desktop and the mobile app's editor page. Tailwind's file scan skips workspace packages, so point it here. */
+@source './';
+
+/*
+ * Theming: components use only these semantic utilities (bg-canvas, text-fg, bg-accent, text-ok-fg…), never
+ * palette classes. `inline` makes each utility reference the raw variable, so a nested [data-theme] (the preview
+ * cards) re-themes its subtree.
+ */
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-panel: var(--panel);
+  --color-card: var(--card);
+  --color-field: var(--field);
+  --color-line: var(--line);
+  --color-hover: var(--hover);
+  --color-selected: var(--selected);
+  --color-fg: var(--fg);
+  --color-fg-2: var(--fg-2);
+  --color-fg-3: var(--fg-3);
+  --color-placeholder: var(--placeholder);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-on-accent: var(--on-accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-ok: var(--ok);
+  --color-ok-fg: var(--ok-fg);
+  --color-warn: var(--warn);
+  --color-warn-fg: var(--warn-fg);
+  --color-bad: var(--bad);
+  --color-bad-fg: var(--bad-fg);
+  --color-info: var(--info);
+  --color-info-fg: var(--info-fg);
+}
+
+/* Shared by the editor and rendered descriptions. Unlayered, so it beats Tailwind's preflight list reset. */
+.rich > :first-child {
+  margin-top: 0;
+}
+.rich p {
+  margin: 0.25rem 0;
+}
+.rich ul,
+.rich ol {
+  margin: 0.25rem 0;
+  padding-left: 1.25rem;
+}
+.rich ul {
+  list-style: disc;
+}
+.rich ol {
+  list-style: decimal;
+}
+.rich li > p {
+  margin: 0.125rem 0;
+}
+.rich strong {
+  font-weight: 600;
+  color: var(--fg);
+}
+.ProseMirror:focus {
+  outline: none;
+}
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--placeholder);
+  pointer-events: none;
+}
+.rich h2 {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+.rich h3 {
+  margin: 0.5rem 0 0.25rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+.rich s {
+  color: var(--fg-3);
+}
+.rich blockquote {
+  margin: 0.5rem 0;
+  border-left: 3px solid var(--line);
+  padding-left: 0.75rem;
+  color: var(--fg-2);
+}
+.rich hr {
+  margin: 0.75rem 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+.rich a {
+  color: var(--accent-fg);
+  text-decoration: underline;
+  cursor: pointer;
+}
+/* Checklists: <li><label><input/></label><div>…</div></li>. The live editor's items lack data-type, so select via the list. */
+.rich ul[data-type='taskList'] {
+  list-style: none;
+  padding-left: 0.125rem;
+}
+.rich ul[data-type='taskList'] > li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.rich ul[data-type='taskList'] > li > label {
+  flex: none;
+  margin-top: 0.3rem;
+}
+.rich ul[data-type='taskList'] > li > div {
+  flex: 1;
+}
+.rich ul[data-type='taskList'] > li input {
+  accent-color: var(--accent);
+}
+.rich li[data-checked='true'] > div {
+  color: var(--fg-3);
+  text-decoration: line-through;
+}
+.rich span[data-color='red'] {
+  color: var(--rc-red);
+}
+.rich span[data-color='orange'] {
+  color: var(--rc-orange);
+}
+.rich span[data-color='green'] {
+  color: var(--rc-green);
+}
+.rich span[data-color='blue'] {
+  color: var(--rc-blue);
+}
+.rich span[data-color='purple'] {
+  color: var(--rc-purple);
+}
+.rich mark {
+  border-radius: 0.2rem;
+  background: none;
+  padding: 0 0.1rem;
+  color: inherit;
+}
+.rich mark[data-color='yellow'] {
+  background: var(--hl-yellow);
+}
+.rich mark[data-color='green'] {
+  background: var(--hl-green);
+}
+.rich mark[data-color='blue'] {
+  background: var(--hl-blue);
+}
+.rich mark[data-color='pink'] {
+  background: var(--hl-pink);
+}

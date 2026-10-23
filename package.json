@@ -1,0 +1,38 @@
+{
+  "name": "daily-status",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Daily Status Tracker: Electron desktop app, Expo mobile app, shared core",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @daily-status/desktop",
+    "mobile": "npm start -w @daily-status/mobile",
+    "android": "npm run android -w @daily-status/mobile",
+    "ios": "npm run ios -w @daily-status/mobile",
+    "build": "npm run build -w @daily-status/desktop",
+    "build:mac": "npm run build:mac -w @daily-status/desktop",
+    "build:win": "npm run build:win -w @daily-status/desktop",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm test --workspaces --if-present",
+    "lint": "eslint --cache .",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@electron-toolkit/eslint-config-prettier": "^3.0.1",
+    "@electron-toolkit/eslint-config-ts": "^4.0.0",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "prettier": "^3.9.10",
+    "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-is": "19.3.0"
+  }
+}

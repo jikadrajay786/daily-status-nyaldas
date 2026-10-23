@@ -1,0 +1,38 @@
+{
+  "name": "@daily-status/editor",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The status editor (TipTap + Tailwind web UI), shared by desktop and the mobile app's DOM component",
+  "exports": {
+    "./theme.css": "./src/theme.css",
+    "./DescriptionEditor": "./src/DescriptionEditor.tsx",
+    "./Toolbar": "./src/Toolbar.tsx",
+    "./LangPicker": "./src/LangPicker.tsx",
+    "./commands": "./src/commands.ts",
+    "./marks": "./src/marks.ts",
+    "./transliterate": "./src/transliterate.ts",
+    "./sanitize": "./src/sanitize.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tiptap/core": "3.31.4",
+    "@tiptap/extension-list": "3.31.4",
+    "@tiptap/extension-placeholder": "3.31.4",
+    "@tiptap/pm": "3.31.4",
+    "@tiptap/react": "3.31.4",
+    "@tiptap/starter-kit": "3.31.4",
+    "dompurify": "3.4.16",
+    "lucide-react": "1.49.0"
+  },
+  "peerDependencies": {
+    "@daily-status/core": "*",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0"
+  }
+}

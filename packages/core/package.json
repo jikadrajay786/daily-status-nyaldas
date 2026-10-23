@@ -1,0 +1,27 @@
+{
+  "name": "@daily-status/core",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared by desktop and mobile: Supabase services, schema types, translations, date rules",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:db": "vitest run -c vitest.db.config.ts"
+  },
+  "peerDependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "react": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "vitest": "5.0.5"
+  },
+  "dependencies": {
+    "htmlparser2": "12.0.0",
+    "zod": "4.6.7"
+  }
+}

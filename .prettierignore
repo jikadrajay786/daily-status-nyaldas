@@ -1,0 +1,10 @@
+out
+dist
+pnpm-lock.yaml
+LICENSE.md
+tsconfig.json
+tsconfig.*.json
+apps/mobile/android
+apps/mobile/ios
+apps/mobile/.expo
+**/expo-env.d.ts

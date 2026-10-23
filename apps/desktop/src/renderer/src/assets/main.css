@@ -1,0 +1,315 @@
+@import 'tailwindcss';
+
+@import '@daily-status/editor/theme.css';
+
+/*
+ * System, Light and Dark share one definition: light-dark() resolves per element from color-scheme, so System
+ * follows the OS with no JS. Redeclared on every [data-theme] so a nested preview resets inherited overrides.
+ * --canvas values must match CANVAS in src/shared/appearance.ts (the native window background).
+ */
+:root,
+[data-theme] {
+  color-scheme: light dark;
+  --canvas: light-dark(#f8fafc, #0f172a);
+  --panel: light-dark(#f1f5f9, #0b1222);
+  --card: light-dark(#ffffff, #162036);
+  --field: light-dark(#ffffff, #0b1222);
+  --line: light-dark(#dbe2ea, #273449);
+  --hover: light-dark(rgb(15 23 42 / 0.05), rgb(255 255 255 / 0.06));
+  --selected: light-dark(rgb(15 23 42 / 0.08), rgb(255 255 255 / 0.1));
+  --fg: light-dark(#0f172a, #f1f5f9);
+  --fg-2: light-dark(#334155, #cbd5e1);
+  --fg-3: light-dark(#5b6b80, #94a3b8);
+  --placeholder: var(--fg-3);
+  --accent: #4f46e5;
+  --accent-hover: light-dark(#4338ca, #6366f1);
+  --on-accent: #ffffff;
+  --accent-fg: light-dark(#4338ca, #a5b4fc);
+  --ok: light-dark(#059669, #10b981);
+  --ok-fg: light-dark(#047857, #6ee7b7);
+  --warn: light-dark(#d97706, #f59e0b);
+  --warn-fg: light-dark(#a1480a, #fcd34d);
+  --bad: light-dark(#e11d48, #f43f5e);
+  --bad-fg: light-dark(#be123c, #fda4af);
+  --info: light-dark(#0284c7, #0ea5e9);
+  --info-fg: light-dark(#0369a1, #7dd3fc);
+  /* Rich-text palette: an update coloured in one theme must stay readable in every other. */
+  --rc-red: light-dark(#be123c, #fda4af);
+  --rc-orange: light-dark(#b23d0a, #fdba74);
+  --rc-green: light-dark(#047857, #6ee7b7);
+  --rc-blue: light-dark(#0369a1, #7dd3fc);
+  --rc-purple: light-dark(#6d28d9, #c4b5fd);
+  --hl-yellow: light-dark(#fde68a, rgb(250 204 21 / 0.3));
+  --hl-green: light-dark(#a7f3d0, rgb(52 211 153 / 0.3));
+  --hl-blue: light-dark(#bae6fd, rgb(56 189 248 / 0.3));
+  --hl-pink: light-dark(#fbcfe8, rgb(244 114 182 / 0.3));
+  /* Scrollbars derive from the text colour, so every theme gets a matching thumb without its own values. */
+  --scrollbar-thumb: color-mix(in oklab, var(--fg) 28%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, var(--fg) 60%, transparent);
+  --scrollbar-idle: 0%;
+  background-color: var(--canvas);
+  color: var(--fg);
+}
+[data-theme='light'] {
+  color-scheme: light;
+}
+[data-theme='dark'] {
+  color-scheme: dark;
+}
+[data-theme='midnight'] {
+  color-scheme: dark;
+  --canvas: #000000;
+  --panel: #050505;
+  --card: #0d0d0d;
+  --field: #000000;
+  --line: #262626;
+  --hover: rgb(255 255 255 / 0.07);
+  --selected: rgb(255 255 255 / 0.12);
+  --fg: #fafafa;
+  --fg-2: #d4d4d4;
+  --fg-3: #a3a3a3;
+}
+[data-theme='cyberpunk'] {
+  color-scheme: dark;
+  --canvas: #0a0614;
+  --panel: #100a1f;
+  --card: #170d2b;
+  --field: #0d0820;
+  --line: #3d2066;
+  --hover: rgb(255 43 214 / 0.1);
+  --selected: rgb(255 43 214 / 0.18);
+  --fg: #f5f3ff;
+  --fg-2: #cdc6f2;
+  --fg-3: #a59bd4;
+  --accent: #ff2bd6;
+  --accent-hover: #ff66e3;
+  --on-accent: #14061f;
+  --accent-fg: #5ef2ff;
+  --ok: #39ff88;
+  --ok-fg: #39ff88;
+  --warn: #ffe14d;
+  --warn-fg: #ffe14d;
+  --bad: #ff4d6d;
+  --bad-fg: #ff8099;
+  --info: #00e5ff;
+  --info-fg: #5ef2ff;
+  --scrollbar-thumb: color-mix(in oklab, var(--accent) 50%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, var(--accent) 80%, transparent);
+}
+[data-theme='sepia'] {
+  color-scheme: light;
+  --canvas: #f4ecd8;
+  --panel: #ebe0c4;
+  --card: #fbf5e6;
+  --field: #fffaf0;
+  --line: #d6c49b;
+  --hover: rgb(59 47 30 / 0.06);
+  --selected: rgb(59 47 30 / 0.1);
+  --fg: #3b2f1e;
+  --fg-2: #574630;
+  --fg-3: #6e5a3c;
+  --accent: #9a4a1c;
+  --accent-hover: #7f3c16;
+  --on-accent: #fff8ec;
+  --accent-fg: #84380f;
+  /* The default light green falls just under 4.5:1 on a green badge over the warm card. */
+  --ok-fg: #03614a;
+}
+
+/*
+ * More contrast layers on top of any theme: secondary text becomes full-strength and borders become visible
+ * edges (3:1 non-text contrast). System follows the OS "increase contrast" setting.
+ */
+[data-contrast='more'],
+[data-contrast='more'] [data-theme] {
+  --fg-2: var(--fg);
+  --fg-3: color-mix(in oklab, var(--fg) 85%, var(--canvas));
+  /* Softer than --fg-3, or an empty box reads as if something were already typed in it. */
+  --placeholder: color-mix(in oklab, var(--fg) 72%, var(--canvas));
+  --line: color-mix(in oklab, var(--fg) 60%, var(--canvas));
+  --selected: color-mix(in oklab, var(--fg) 20%, transparent);
+  --scrollbar-thumb: color-mix(in oklab, var(--fg) 62%, transparent);
+  --scrollbar-thumb-hover: var(--fg);
+  --scrollbar-idle: 100%;
+}
+@media (prefers-contrast: more) {
+  [data-contrast='system'],
+  [data-contrast='system'] [data-theme] {
+    --fg-2: var(--fg);
+    --fg-3: color-mix(in oklab, var(--fg) 85%, var(--canvas));
+    /* Softer than --fg-3, or an empty box reads as if something were already typed in it. */
+    --placeholder: color-mix(in oklab, var(--fg) 72%, var(--canvas));
+    --line: color-mix(in oklab, var(--fg) 60%, var(--canvas));
+    --selected: color-mix(in oklab, var(--fg) 20%, transparent);
+    --scrollbar-thumb: color-mix(in oklab, var(--fg) 62%, transparent);
+    --scrollbar-thumb-hover: var(--fg);
+    --scrollbar-idle: 100%;
+  }
+}
+
+/* Fonts. OpenDyslexic and the Western stacks lack Devanagari/Gujarati, so every stack ends in Indic fallbacks. */
+[data-font] {
+  --indic:
+    'Kohinoor Devanagari', 'Gujarati Sangam MN', 'Nirmala UI', 'Noto Sans Devanagari',
+    'Noto Sans Gujarati';
+}
+[data-font='sans'] {
+  font-family: ui-sans-serif, system-ui, var(--indic), sans-serif;
+}
+[data-font='serif'] {
+  font-family: ui-serif, Georgia, 'Times New Roman', var(--indic), serif;
+}
+[data-font='mono'] {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, var(--indic), monospace;
+}
+[data-font='dyslexic'] {
+  font-family: 'OpenDyslexic', ui-sans-serif, system-ui, var(--indic), sans-serif;
+}
+
+/* Text size sets the root rem, so all Tailwind sizes scale together. */
+:root[data-size='sm'] {
+  font-size: 14px;
+}
+:root[data-size='lg'] {
+  font-size: 18px;
+}
+:root[data-size='xl'] {
+  font-size: 20px;
+}
+:root[data-size='2xl'] {
+  font-size: 24px;
+}
+/* 200% of the default, the WCAG 1.4.4 target. */
+:root[data-size='3xl'] {
+  font-size: 32px;
+}
+
+/* Tailwind v4 derives every padding, gap and margin from --spacing, so density is one variable. */
+:root[data-density='compact'] {
+  --spacing: 0.2rem;
+}
+
+/* Set for one frame while switching, so the change is instant rather than a staggered fade. */
+:root[data-switching] *,
+:root[data-switching] *::before,
+:root[data-switching] *::after {
+  transition: none !important;
+}
+
+/* One keyboard focus style for every control, in a colour that clears 3:1 on every surface of every theme.
+ * Layered so inputs, which draw their own focus border, can still opt out with focus:outline-hidden. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--accent-fg);
+    outline-offset: 2px;
+  }
+}
+
+/*
+ * Scrollbars: thin, rounded, theme-coloured, and faded out until the pointer is over the container or it is
+ * scrolling ([data-scrolling], from lib/scrollbars.ts). Chromium-only ::-webkit-scrollbar on purpose: setting the
+ * standard scrollbar-color/scrollbar-width makes Chromium ignore these rules, and scrollbar-color inherits, so
+ * one declaration would switch them off for a whole subtree. High contrast mode keeps the system scrollbars.
+ */
+@property --sb-alpha {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 0%;
+}
+@media not (forced-colors: active) {
+  /* Layered so components' own transition utilities still win; scroll containers don't set any. */
+  @layer base {
+    * {
+      --sb-alpha: var(--scrollbar-idle);
+      transition: --sb-alpha 0.3s ease;
+    }
+    :hover,
+    [data-scrolling] {
+      --sb-alpha: 100%;
+    }
+  }
+  /* 10px to grab, drawn 6px wide (8px under the pointer) via a transparent border. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-button {
+    display: none;
+  }
+  ::-webkit-scrollbar-thumb {
+    min-height: 2.5rem;
+    border: 2px solid transparent;
+    border-radius: 9999px;
+    /* Mixed here rather than on every element, so a fade restyles only the thumb, not the page under it. */
+    --sb-alpha: inherit;
+    background-color: color-mix(in oklab, var(--scrollbar-thumb) var(--sb-alpha), transparent);
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover,
+  ::-webkit-scrollbar-thumb:active {
+    border-width: 1px;
+    background-color: var(--scrollbar-thumb-hover);
+  }
+}
+
+/* For strips that scroll sideways but shouldn't show a bar (wheel, trackpad and keyboard still scroll them). */
+@utility no-scrollbar {
+  scrollbar-width: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/*
+ * Loading placeholders. They fade in after 150ms, so fast loads never flash a skeleton, then shimmer.
+ * Reduced motion stops the shimmer (global rule above), leaving a still bar.
+ */
+@layer components {
+  .skeleton {
+    background: linear-gradient(90deg, var(--hover) 25%, var(--selected) 50%, var(--hover) 75%) 0
+      0 / 200% 100%;
+    animation:
+      skeleton-in 0.2s 0.15s both,
+      skeleton-shimmer 1.4s 0.35s ease-in-out infinite;
+  }
+}
+@keyframes skeleton-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes skeleton-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* Windows high contrast drops box-shadows, which is how Tailwind draws rings, so selection needs an outline. */
+@media (forced-colors: active) {
+  [aria-pressed='true'],
+  [aria-selected='true'],
+  [aria-current='page'],
+  [aria-current='true'] {
+    outline: 3px solid Highlight;
+    outline-offset: -3px;
+  }
+  .ProseMirror:focus {
+    outline: 2px solid Highlight;
+  }
+  /* Forced colours erase backgrounds, so the placeholders keep an outline. */
+  .skeleton {
+    outline: 1px solid GrayText;
+  }
+}

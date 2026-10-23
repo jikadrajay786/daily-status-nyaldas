@@ -1,0 +1,24 @@
+@import 'tailwindcss';
+@import '@daily-status/editor/theme.css';
+
+/* While typing the page fills the WebView, so the editor box takes exactly the height native gives it; at rest
+   the page keeps its natural height and the WebView grows to match. */
+html[data-fit],
+html[data-fit] body,
+html[data-fit] #root {
+  height: 100%;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--fg);
+  font-family: system-ui, sans-serif;
+  -webkit-text-size-adjust: none;
+}
+
+/* For strips that scroll sideways but shouldn't show a bar. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+}
