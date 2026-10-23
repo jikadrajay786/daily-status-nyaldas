@@ -60,7 +60,9 @@ const Workspace = ({ profile }: { profile: Profile }): React.JSX.Element => {
     <div className="flex h-screen bg-canvas text-fg">
       <Sidebar view={active} profile={profile} onNavigate={setView} />
       <main className="flex-1 overflow-y-auto [scrollbar-gutter:stable]">
-        <div className="mx-auto max-w-5xl p-8">{page}</div>
+        <div key={active} className="mx-auto max-w-5xl animate-fade p-8">
+          {page}
+        </div>
       </main>
     </div>
   )

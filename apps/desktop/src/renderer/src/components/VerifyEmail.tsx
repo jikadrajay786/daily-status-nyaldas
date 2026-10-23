@@ -72,8 +72,8 @@ export const VerifyEmail = ({ email, password, justSent, onBack }: Props): React
       </Field>
       {phase.state === 'error' && <Notice tone="bad">{t(phase.message)}</Notice>}
       {phase.state === 'sent' && <Notice tone="ok">{t('codeSent')}</Notice>}
-      <Button type="submit" disabled={phase.state === 'busy'}>
-        {phase.state === 'busy' ? t('pleaseWait') : t('verify')}
+      <Button type="submit" busy={phase.state === 'busy'}>
+        {t('verify')}
       </Button>
       <Button variant="ghost" disabled={wait > 0 || phase.state === 'busy'} onClick={resend}>
         {wait > 0 ? t('resendIn', { s: wait }) : t('resend')}

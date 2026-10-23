@@ -1,4 +1,5 @@
 import { LangPicker } from '@daily-status/editor/LangPicker'
+import { LoaderCircle } from 'lucide-react'
 import {
   useId,
   type ButtonHTMLAttributes,
@@ -35,11 +36,11 @@ const BUTTONS = {
 }
 
 const CONTROL =
-  'w-full rounded-lg border border-line bg-field px-3 py-2 text-sm text-fg placeholder:text-placeholder focus:border-accent-fg focus:ring-2 focus:ring-accent-fg/30 focus:outline-hidden'
+  'w-full rounded-lg border border-line bg-field px-3 py-2 text-sm text-fg placeholder:text-placeholder transition-[border-color,box-shadow] duration-150 ease-enter focus:border-accent-fg focus:ring-2 focus:ring-accent-fg/30 focus:outline-hidden'
 
 export const Badge = ({ label, tone }: { label: string; tone: Tone }): React.JSX.Element => (
   <span
-    className={`inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${TONES[tone]}`}
+    className={`inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 transition-colors duration-200 ease-enter ${TONES[tone]}`}
   >
     {label}
   </span>
@@ -83,18 +84,28 @@ export const Card = ({
   </section>
 )
 
+// `busy` keeps the label (so the width never jumps) and adds a spinner in front of it.
 export const Button = ({
   variant = 'primary',
   className = '',
+  busy = false,
+  disabled,
+  children,
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: keyof typeof BUTTONS
+  busy?: boolean
 }): React.JSX.Element => (
   <button
     type="button"
     {...props}
-    className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${BUTTONS[variant]} ${className}`}
-  />
+    disabled={disabled || busy}
+    aria-busy={busy || undefined}
+    className={`inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-[background-color,color,transform] duration-150 ease-enter enabled:active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 aria-busy:cursor-wait aria-busy:opacity-80 ${BUTTONS[variant]} ${className}`}
+  >
+    {busy && <LoaderCircle aria-hidden className="size-4 animate-spin" />}
+    {children}
+  </button>
 )
 
 export const Field = ({

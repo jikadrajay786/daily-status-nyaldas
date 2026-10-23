@@ -111,10 +111,8 @@ export const AuthScreen = (): React.JSX.Element => {
               />
             </Field>
             {phase.state === 'error' && <Notice tone="bad">{t(phase.message)}</Notice>}
-            <Button type="submit" disabled={phase.state === 'busy'}>
-              {phase.state === 'busy'
-                ? t('pleaseWait')
-                : t(mode === 'sign-in' ? 'signIn' : 'createAccount')}
+            <Button type="submit" busy={phase.state === 'busy'}>
+              {t(mode === 'sign-in' ? 'signIn' : 'createAccount')}
             </Button>
             <p className="text-center text-sm text-fg-2">
               {t(mode === 'sign-in' ? 'newHere' : 'haveAccount')}{' '}
