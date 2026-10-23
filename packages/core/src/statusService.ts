@@ -1,5 +1,6 @@
-import type { DailyStatus, Profile, StatusInput } from './database.types'
-import { db, searchTerm, unwrap } from './supabase'
+import type { DailyStatus, Profile, Role, StatusInput } from './database.types'
+import { db, searchTerm, today, unwrap } from './supabase'
+import { addDays } from './workdays'
 
 export const getProfile = async (id: string): Promise<Profile | null> =>
   unwrap(await db().from('profiles').select().eq('id', id).maybeSingle())
@@ -69,3 +70,15 @@ export const getLastStatusBefore = async (
       .limit(1)
       .maybeSingle()
   )
+
+// Matches the status_editable() RLS rule: staff may change an update until 2 days after its date; admins always.
+export const EDIT_DAYS = 2
+export const canChange = (date: string, role: Role, now = today()): boolean =>
+  role === 'admin' || date >= addDays(now, -EDIT_DAYS)
+
+// A save inside the first minute is still the original; anything later counts as an edit.
+export const wasEdited = ({
+  created_at,
+  updated_at
+}: Pick<DailyStatus, 'created_at' | 'updated_at'>): boolean =>
+  Date.parse(updated_at) - Date.parse(created_at) > 60_000

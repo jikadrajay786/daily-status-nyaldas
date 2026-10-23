@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { DailyStatus, Profile } from '@daily-status/core/database.types'
 import { useT, type Key } from '@daily-status/core/i18n'
-import { deleteStatus, listMyStatuses } from '@daily-status/core/statusService'
+import { canChange, deleteStatus, listMyStatuses } from '@daily-status/core/statusService'
 import { useDebounced } from '@daily-status/core/useDebounced'
 import { errMsg, useQuery } from '@daily-status/core/useQuery'
 import { CardsSkeleton } from './Skeletons'
@@ -61,7 +61,11 @@ export const StatusHistory = ({ profile, onEdit }: Props): React.JSX.Element => 
               status={s}
               actions={
                 // In-app confirm: window.confirm's OK/Cancel buttons stay in the OS language.
-                confirming === s.id ? (
+                !canChange(s.date, profile.role) ? (
+                  <span title={t('statusLocked')} className="text-xs text-fg-3">
+                    {t('lockedShort')}
+                  </span>
+                ) : confirming === s.id ? (
                   <>
                     <span className="mr-auto self-center text-sm text-bad-fg">
                       {t('confirmDelete')}

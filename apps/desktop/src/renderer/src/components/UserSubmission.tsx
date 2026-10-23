@@ -4,7 +4,12 @@ import { useT, type Key } from '@daily-status/core/i18n'
 import { loadPlanBefore } from '@daily-status/core/richText'
 import { loadDraft, saveDraft } from '../lib/drafts'
 import { initialWriteLang, saveWriteLang } from '../lib/writeLang'
-import { getMyStatus, listMyStatuses, saveStatus } from '@daily-status/core/statusService'
+import {
+  canChange,
+  getMyStatus,
+  listMyStatuses,
+  saveStatus
+} from '@daily-status/core/statusService'
 import { today } from '@daily-status/core/supabase'
 import { errMsg, useQuery } from '@daily-status/core/useQuery'
 import { DescriptionEditor, type EditorChange } from '@daily-status/editor/DescriptionEditor'
@@ -42,6 +47,11 @@ export const UserSubmission = ({ profile, date, onDateChange }: Props): React.JS
           <FormSkeleton />
         ) : row.state === 'error' ? (
           <Notice tone="bad">{t(row.message)}</Notice>
+        ) : row.data && !canChange(date, profile.role) ? (
+          <div className="flex flex-col gap-3">
+            <Notice>{t('statusLocked')}</Notice>
+            <StatusCard status={row.data} />
+          </div>
         ) : (
           // Keyed so switching dates, saving or discarding a draft remounts the form with fresh values.
           <SubmissionForm
@@ -72,7 +82,8 @@ export const UserSubmission = ({ profile, date, onDateChange }: Props): React.JS
               key={s.id}
               status={s}
               actions={
-                s.date !== date && (
+                s.date !== date &&
+                canChange(s.date, profile.role) && (
                   <Button variant="ghost" onClick={() => onDateChange(s.date)}>
                     {t('edit')}
                   </Button>

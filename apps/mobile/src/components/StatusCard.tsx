@@ -1,6 +1,7 @@
 import type { DailyStatus, Profile } from '@daily-status/core/database.types'
 import { fmtDate, fmtHours, nameOf } from '@daily-status/core/format'
 import { useT } from '@daily-status/core/i18n'
+import { wasEdited } from '@daily-status/core/statusService'
 import type { ReactNode } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { useTheme } from '@/lib/theme'
@@ -35,6 +36,19 @@ export const StatusCard = ({
       )}
       <View style={s.head}>
         <Text style={[s.date, { color: colors.fg2 }]}>{fmtDate(st.date, locale)}</Text>
+        {wasEdited(st) && (
+          <View
+            accessible
+            accessibilityLabel={t('editedAt', {
+              when: new Date(st.updated_at).toLocaleString(locale, {
+                dateStyle: 'medium',
+                timeStyle: 'short'
+              })
+            })}
+          >
+            <Badge label={t('edited')} tone="idle" />
+          </View>
+        )}
         <Badge label={fmtHours(st.hours_logged, t)} tone="info" />
       </View>
       <RichText html={st.description} />

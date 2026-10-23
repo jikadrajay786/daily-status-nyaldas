@@ -1,7 +1,12 @@
 import type { DailyStatus } from '@daily-status/core/database.types'
 import { useT, type Key } from '@daily-status/core/i18n'
 import { loadPlanBefore, parseDraft, type Draft } from '@daily-status/core/richText'
-import { getMyStatus, listMyStatuses, saveStatus } from '@daily-status/core/statusService'
+import {
+  canChange,
+  getMyStatus,
+  listMyStatuses,
+  saveStatus
+} from '@daily-status/core/statusService'
 import { today } from '@daily-status/core/supabase'
 import { errMsg, useQuery } from '@daily-status/core/useQuery'
 import { router, useLocalSearchParams } from 'expo-router'
@@ -86,6 +91,7 @@ export default function Today(): React.JSX.Element {
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => () => clearTimeout(timer.current), [])
   const savedHours = String(form?.row?.hours_logged ?? 8)
+  const locked = !!form?.row && !canChange(date, profile.role)
   const writeDraft = (html: string, hours: string): void =>
     prefs.set(draftKey, JSON.stringify({ html, hours } satisfies Draft))
   // Drafts are written on a short debounce: the OS can close the app at any moment.
@@ -149,65 +155,80 @@ export default function Today(): React.JSX.Element {
           <FormSkeleton />
         ) : (
           <>
-            <View style={s.badges}>
-              <Badge
-                label={
-                  form.row
-                    ? t('submittedAt', {
-                        when: new Date(form.row.updated_at).toLocaleString(locale, {
-                          dateStyle: 'medium',
-                          timeStyle: 'short'
+            {locked && form.row && (
+              <>
+                <Notice>{t('statusLocked')}</Notice>
+                <StatusCard status={form.row} />
+              </>
+            )}
+            {/* Locked dates collapse the form instead of removing it: unmounting (or display:none, which Fabric
+                also detaches) tears down the editor's WebView while its calls are in flight. */}
+            <View
+              style={[s.form, locked && s.collapsed]}
+              pointerEvents={locked ? 'none' : 'auto'}
+              accessibilityElementsHidden={locked}
+              importantForAccessibility={locked ? 'no-hide-descendants' : 'auto'}
+            >
+              <View style={s.badges}>
+                <Badge
+                  label={
+                    form.row
+                      ? t('submittedAt', {
+                          when: new Date(form.row.updated_at).toLocaleString(locale, {
+                            dateStyle: 'medium',
+                            timeStyle: 'short'
+                          })
                         })
-                      })
-                    : t('notSubmitted')
-                }
-                tone={form.row ? 'ok' : 'warn'}
+                      : t('notSubmitted')
+                  }
+                  tone={form.row ? 'ok' : 'warn'}
+                />
+                {form.draft && (
+                  <>
+                    <Badge label={t('draftKept')} tone="info" />
+                    <Link onPress={discard}>{t('startOver')}</Link>
+                  </>
+                )}
+              </View>
+              <Text accessibilityRole="header" style={[s.label, { color: colors.fg }]}>
+                {t('whatDidYouDo')}
+              </Text>
+              <View onLayout={(e) => (editorY.current = e.nativeEvent.layout.y)}>
+                <EditorPage
+                  ref={editor}
+                  docKey={form.key}
+                  initialHtml={form.draft?.html ?? form.row?.description ?? ''}
+                  lang={lang}
+                  vars={vars}
+                  fontScale={editorFontScale(fontScale)}
+                  initialWriteLang={writeLang}
+                  onWriteLangChange={async (l) => setWriteLang(l)}
+                  onChange={onChange}
+                  loadPlan={() => loadPlanBefore(profile.id, date)}
+                  onEditorFocus={fit.onEditorFocus}
+                  typing={fit.typing}
+                  minHeight={fit.rest}
+                  onContentHeight={fit.onContentHeight}
+                  // At rest a drag on the editor scrolls the screen; only while typing does it scroll the writing area.
+                  dom={{
+                    nestedScrollEnabled: fit.typing,
+                    scrollEnabled: fit.typing,
+                    style: { height: fit.height }
+                  }}
+                />
+              </View>
+              <HoursField
+                value={form.hours}
+                onChange={setHours}
+                // Typing hours leaves the writing area, so a pending Write-in word converts now.
+                onFocus={() => editor.current?.blur()}
+                {...(hoursErr && { error: hoursErr })}
               />
-              {form.draft && (
-                <>
-                  <Badge label={t('draftKept')} tone="info" />
-                  <Link onPress={discard}>{t('startOver')}</Link>
-                </>
-              )}
+              {save.state === 'error' && <Notice tone="bad">{t(save.message)}</Notice>}
+              <Button onPress={submit} disabled={save.state === 'saving'}>
+                {save.state === 'saving' ? t('saving') : t(form.row ? 'saveChanges' : 'submit')}
+              </Button>
             </View>
-            <Text accessibilityRole="header" style={[s.label, { color: colors.fg }]}>
-              {t('whatDidYouDo')}
-            </Text>
-            <View onLayout={(e) => (editorY.current = e.nativeEvent.layout.y)}>
-              <EditorPage
-                ref={editor}
-                docKey={form.key}
-                initialHtml={form.draft?.html ?? form.row?.description ?? ''}
-                lang={lang}
-                vars={vars}
-                fontScale={editorFontScale(fontScale)}
-                initialWriteLang={writeLang}
-                onWriteLangChange={async (l) => setWriteLang(l)}
-                onChange={onChange}
-                loadPlan={() => loadPlanBefore(profile.id, date)}
-                onEditorFocus={fit.onEditorFocus}
-                typing={fit.typing}
-                minHeight={fit.rest}
-                onContentHeight={fit.onContentHeight}
-                // At rest a drag on the editor scrolls the screen; only while typing does it scroll the writing area.
-                dom={{
-                  nestedScrollEnabled: fit.typing,
-                  scrollEnabled: fit.typing,
-                  style: { height: fit.height }
-                }}
-              />
-            </View>
-            <HoursField
-              value={form.hours}
-              onChange={setHours}
-              // Typing hours leaves the writing area, so a pending Write-in word converts now.
-              onFocus={() => editor.current?.blur()}
-              {...(hoursErr && { error: hoursErr })}
-            />
-            {save.state === 'error' && <Notice tone="bad">{t(save.message)}</Notice>}
-            <Button onPress={submit} disabled={save.state === 'saving'}>
-              {save.state === 'saving' ? t('saving') : t(form.row ? 'saveChanges' : 'submit')}
-            </Button>
           </>
         )}
         {/* Covers the form while another date loads, so the editor's WebView stays mounted underneath. */}
@@ -229,7 +250,8 @@ export default function Today(): React.JSX.Element {
             key={st.id}
             status={st}
             actions={
-              st.date !== date && (
+              st.date !== date &&
+              canChange(st.date, profile.role) && (
                 <Button variant="ghost" onPress={() => setDate(st.date)}>
                   {t('edit')}
                 </Button>
@@ -256,6 +278,7 @@ const FormSkeleton = (): React.JSX.Element => (
 
 const s = StyleSheet.create({
   form: { gap: 14 },
+  collapsed: { height: 0, overflow: 'hidden', opacity: 0 },
   badges: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   label: { fontSize: 16, fontWeight: '600', marginTop: 4 },
   section: {

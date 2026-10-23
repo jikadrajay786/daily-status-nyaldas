@@ -1,6 +1,6 @@
 import type { DailyStatus } from '@daily-status/core/database.types'
 import { useT, type Key } from '@daily-status/core/i18n'
-import { deleteStatus, listMyStatuses } from '@daily-status/core/statusService'
+import { canChange, deleteStatus, listMyStatuses } from '@daily-status/core/statusService'
 import { today } from '@daily-status/core/supabase'
 import { useDebounced } from '@daily-status/core/useDebounced'
 import { errMsg, useQuery } from '@daily-status/core/useQuery'
@@ -96,7 +96,9 @@ export default function History(): React.JSX.Element {
             status={st}
             actions={
               // In-app confirm: the system Alert's buttons would follow the phone's language, not the app's.
-              confirming === st.id ? (
+              !canChange(st.date, profile.role) ? (
+                <Text style={[s.locked, { color: colors.fg3 }]}>{t('statusLocked')}</Text>
+              ) : confirming === st.id ? (
                 <>
                   <Text style={[s.confirm, { color: colors.badFg }]}>{t('confirmDelete')}</Text>
                   <Button variant="ghost" onPress={() => setConfirming(undefined)}>
@@ -131,5 +133,6 @@ const s = StyleSheet.create({
   fill: { flex: 1 },
   list: { padding: 24, gap: 16 },
   header: { gap: 16 },
-  confirm: { flexBasis: '100%', fontSize: 15, textAlign: 'right' }
+  confirm: { flexBasis: '100%', fontSize: 15, textAlign: 'right' },
+  locked: { flexBasis: '100%', fontSize: 13, textAlign: 'right' }
 })
