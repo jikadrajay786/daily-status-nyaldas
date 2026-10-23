@@ -4,7 +4,7 @@ import type { Profile } from './database.types'
 import type { Key } from './i18n'
 import { getProfile } from './statusService'
 import { db } from './supabase'
-import { useQuery } from './useQuery'
+import { useLiveQuery } from './live'
 
 export type Auth =
   | { state: 'loading' }
@@ -22,7 +22,8 @@ export function useAuth(): Auth {
 
   // Keyed on user id, so token refreshes don't refetch the profile.
   const uid = session?.user.id
-  const [profile, retry] = useQuery(`profile:${uid}`, () =>
+  // Live, so a role change (made admin, or demoted) reaches the signed-in person without signing out.
+  const [profile, retry] = useLiveQuery(`profile:${uid}`, () =>
     uid ? getProfile(uid) : Promise.resolve(null)
   )
 

@@ -1,3 +1,4 @@
+import { bumpLive, useLiveQuery } from '@daily-status/core/live'
 import type { DailyStatus } from '@daily-status/core/database.types'
 import { useT, type Key } from '@daily-status/core/i18n'
 import { loadPlanBefore, parseDraft, type Draft } from '@daily-status/core/richText'
@@ -8,7 +9,7 @@ import {
   saveStatus
 } from '@daily-status/core/statusService'
 import { today } from '@daily-status/core/supabase'
-import { errMsg, useQuery } from '@daily-status/core/useQuery'
+import { errMsg } from '@daily-status/core/useQuery'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -24,7 +25,6 @@ import { DateField } from '@/components/DateField'
 import { CardsSkeleton, StatusCard } from '@/components/StatusCard'
 import { Badge, Button, Link, Loading, Notice, Screen, Skeleton, Title } from '@/components/ui'
 import EditorPage from '@/dom/EditorPage'
-import { bumpData, useDataVersion } from '@/lib/dataVersion'
 import {
   editorFontScale,
   setWriteLang,
@@ -54,15 +54,17 @@ export default function Today(): React.JSX.Element {
   const date = validDate(useLocalSearchParams<{ date?: string }>().date) ?? today()
   const setDate = (d: string): void => router.setParams({ date: d })
 
-  const version = useDataVersion()
-  const [row] = useQuery(`mine:${profile.id}:${date}:${version}`, () =>
+  const [row, , rowRefreshing] = useLiveQuery(`mine:${profile.id}:${date}`, () =>
     getMyStatus(profile.id, date)
   )
-  const [recent] = useQuery(`recent:${profile.id}:${version}`, () =>
+  const [recent, , recentRefreshing] = useLiveQuery(`recent:${profile.id}`, () =>
     listMyStatuses(profile.id, '', 5)
   )
   const [resets, setResets] = useState(0)
-  const pull = usePullToRefresh(row.state === 'loading' || recent.state === 'loading', bumpData)
+  const pull = usePullToRefresh(
+    row.state === 'loading' || recent.state === 'loading' || rowRefreshing || recentRefreshing,
+    bumpLive
+  )
   const draftKey = `draft:${profile.id}:${date}`
 
   // A new date, a save or "Start over" resets the form, but the editor's WebView stays mounted: only its document
@@ -133,7 +135,7 @@ export default function Today(): React.JSX.Element {
       prefs.remove(draftKey)
       if (date === today()) markToday(profile.id, true)
       setSave({ state: 'idle' })
-      bumpData()
+      bumpLive()
     } catch (err) {
       setSave({ state: 'error', message: errMsg(err) })
     }

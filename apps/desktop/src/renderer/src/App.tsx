@@ -16,6 +16,7 @@ import { canSee, type View } from './lib/nav'
 import { db, today } from '@daily-status/core/supabase'
 import { supabase } from './lib/supabase'
 import { useAuth } from '@daily-status/core/useAuth'
+import { useRealtimeSync } from '@daily-status/core/live'
 
 const Splash = ({ children }: { children: ReactNode }): React.JSX.Element => (
   <main className="grid min-h-screen place-items-center bg-canvas p-6 text-fg">
@@ -25,6 +26,7 @@ const Splash = ({ children }: { children: ReactNode }): React.JSX.Element => (
 
 const Workspace = ({ profile }: { profile: Profile }): React.JSX.Element => {
   const [view, setView] = useState<View>('today')
+  useRealtimeSync(profile.id)
   const [date, setDate] = useState(today)
   // Falls back if the role changes mid-session; RLS is what actually hides team data.
   const active = canSee(view, profile.role) ? view : 'today'

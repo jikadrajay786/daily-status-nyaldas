@@ -11,7 +11,8 @@ import { useT, type Key } from '@daily-status/core/i18n'
 import { deleteStatus } from '@daily-status/core/statusService'
 import { today } from '@daily-status/core/supabase'
 import { useDebounced } from '@daily-status/core/useDebounced'
-import { errMsg, useQuery } from '@daily-status/core/useQuery'
+import { useLiveQuery } from '@daily-status/core/live'
+import { errMsg } from '@daily-status/core/useQuery'
 import {
   addDays,
   clampRange,
@@ -44,13 +45,13 @@ export const UserHistoryDetail = ({ person, version, onChanged }: Props): React.
   const q = useDebounced(search)
   const range = preset === 'custom' ? clampRange(custom, now) : presetRange(preset, now)
   const key = `${person.id}:${range.start}:${range.end}:${version}`
-  const [metrics] = useQuery(`umetrics:${key}`, () =>
+  const [metrics] = useLiveQuery(`umetrics:${key}`, () =>
     getIndividualUserMetrics(person.id, range.start, range.end)
   )
-  const [history] = useQuery(`uhistory:${key}:${q}`, () =>
+  const [history] = useLiveQuery(`uhistory:${key}:${q}`, () =>
     getIndividualUserHistory(person.id, range.start, range.end, q)
   )
-  const [streak] = useQuery(`streak:${person.id}:${version}`, () => getUserStreak(person.id))
+  const [streak] = useLiveQuery(`streak:${person.id}:${version}`, () => getUserStreak(person.id))
   const [editing, setEditing] = useState<string>()
   const [confirming, setConfirming] = useState<string>()
   const [error, setError] = useState<Key>()

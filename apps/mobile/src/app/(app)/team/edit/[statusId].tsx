@@ -1,9 +1,10 @@
+import { bumpLive, useLiveQuery } from '@daily-status/core/live'
 import type { DailyStatus } from '@daily-status/core/database.types'
 import { fmtDate, nameOf } from '@daily-status/core/format'
 import { useT, type Key } from '@daily-status/core/i18n'
 import { loadPlanBefore } from '@daily-status/core/richText'
 import { getProfile, getStatus, updateStatus } from '@daily-status/core/statusService'
-import { errMsg, useQuery } from '@daily-status/core/useQuery'
+import { errMsg } from '@daily-status/core/useQuery'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useMemo, useRef, useState, type RefObject } from 'react'
 import { StyleSheet, Text, useWindowDimensions, View, type ScrollViewInstance } from 'react-native'
@@ -19,7 +20,6 @@ import {
 } from '@/lib/editor'
 import { hoursError, parseHours } from '@/lib/hours'
 import { uuidParam } from '@/lib/route'
-import { bumpData, useDataVersion } from '@/lib/dataVersion'
 import { cssVars, useTheme } from '@/lib/theme'
 
 type Loaded = { status: DailyStatus; name: string } | null
@@ -28,9 +28,8 @@ type Loaded = { status: DailyStatus; name: string } | null
 export default function EditStatus(): React.JSX.Element {
   const { t, locale } = useT()
   const id = uuidParam(useLocalSearchParams<{ statusId: string }>().statusId)
-  const version = useDataVersion()
   const scroll = useRef<ScrollViewInstance>(null)
-  const [data] = useQuery<Loaded>(`status:${id}:${version}`, async () => {
+  const [data] = useLiveQuery<Loaded>(`status:${id}`, async () => {
     const status = id ? await getStatus(id) : null
     return status ? { status, name: nameOf(await getProfile(status.user_id)) } : null
   })
@@ -99,7 +98,7 @@ const Form = ({
       await updateStatus(status.id, { description: c.html, hours_logged: parseHours(hours) })
       // Back first: bumping changes this screen's own query key, which would flash its skeleton.
       router.back()
-      bumpData()
+      bumpLive()
     } catch (err) {
       setSave({ state: 'error', message: errMsg(err) })
     }

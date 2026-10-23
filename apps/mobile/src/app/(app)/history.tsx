@@ -1,16 +1,16 @@
+import { bumpLive, useLiveQuery } from '@daily-status/core/live'
 import type { DailyStatus } from '@daily-status/core/database.types'
 import { useT, type Key } from '@daily-status/core/i18n'
 import { canChange, deleteStatus, listMyStatuses } from '@daily-status/core/statusService'
 import { today } from '@daily-status/core/supabase'
 import { useDebounced } from '@daily-status/core/useDebounced'
-import { errMsg, useQuery } from '@daily-status/core/useQuery'
+import { errMsg } from '@daily-status/core/useQuery'
 import { router } from 'expo-router'
 import { useState } from 'react'
 import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { CardsSkeleton, StatusCard } from '@/components/StatusCard'
 import { Button, Field, Notice, Title } from '@/components/ui'
-import { bumpData, useDataVersion } from '@/lib/dataVersion'
 import { useProfile } from '@/lib/profile'
 import { markToday } from '@/lib/reminder'
 import { useTheme } from '@/lib/theme'
@@ -21,21 +21,20 @@ export default function History(): React.JSX.Element {
   const profile = useProfile()
   const [search, setSearch] = useState('')
   const q = useDebounced(search)
-  const version = useDataVersion()
-  const [list] = useQuery(`history:${profile.id}:${q}:${version}`, () =>
+  const [list, , refreshing] = useLiveQuery(`history:${profile.id}:${q}`, () =>
     listMyStatuses(profile.id, q)
   )
   const [confirming, setConfirming] = useState<string>()
   const [error, setError] = useState<Key>()
   const [pulling, setPulling] = useState(false)
-  if (pulling && list.state !== 'loading') setPulling(false)
+  if (pulling && list.state !== 'loading' && !refreshing) setPulling(false)
 
   const remove = async (st: DailyStatus): Promise<void> => {
     try {
       await deleteStatus(st.id)
       if (st.date === today()) markToday(st.user_id, false)
       setError(undefined)
-      bumpData()
+      bumpLive()
     } catch (err) {
       setError(errMsg(err))
     }
@@ -57,7 +56,7 @@ export default function History(): React.JSX.Element {
             refreshing={pulling}
             onRefresh={() => {
               setPulling(true)
-              bumpData()
+              bumpLive()
             }}
           />
         }

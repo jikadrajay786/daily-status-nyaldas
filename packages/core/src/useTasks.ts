@@ -1,7 +1,7 @@
-import { useEffect, useEffectEvent, useId, useState } from 'react'
+import { useState } from 'react'
 import type { Task } from './database.types'
 import type { Key } from './i18n'
-import { db } from './supabase'
+import { useLiveQuery } from './live'
 import {
   createTask,
   listAllTasks,
@@ -11,38 +11,13 @@ import {
   type CreateTaskInput,
   type UpdateTaskStatusInput
 } from './taskService'
-import { errMsg, useQuery, type Query } from './useQuery'
+import { errMsg, type Query } from './useQuery'
 
-// Realtime runs under the subscriber's RLS, so each person only hears about tasks they can read.
-const useTaskChanges = (onChange: () => void): void => {
-  const id = useId()
-  const run = useEffectEvent(onChange)
-  useEffect(() => {
-    const ch = db()
-      .channel(`tasks${id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => run())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_assignments' }, () =>
-        run()
-      )
-      .subscribe()
-    return () => void db().removeChannel(ch)
-  }, [id])
-}
+export const useAdminTasks = (): [Query<BoardTask[]>, () => void, boolean] =>
+  useLiveQuery('tasks:all', listAllTasks)
 
-// Keeps showing the last result while a realtime-triggered refetch runs, so the board never flashes a skeleton.
-const useLiveTasks = <T>(key: string, fn: () => Promise<T>): [Query<T>, () => void] => {
-  const [q, reload] = useQuery(key, fn)
-  const [last, setLast] = useState(q)
-  if (q.state !== 'loading' && q !== last) setLast(q)
-  useTaskChanges(reload)
-  return [q.state === 'loading' && last.state === 'ok' ? last : q, reload]
-}
-
-export const useAdminTasks = (): [Query<BoardTask[]>, () => void] =>
-  useLiveTasks('tasks:all', listAllTasks)
-
-export const useUserTasks = (userId: string): [Query<Task[]>, () => void] =>
-  useLiveTasks(`tasks:${userId}`, () => listMyTasks(userId))
+export const useUserTasks = (userId: string): [Query<Task[]>, () => void, boolean] =>
+  useLiveQuery(`tasks:${userId}`, () => listMyTasks(userId))
 
 export type Mutation<A, R> = {
   run: (arg: A) => Promise<R | null>

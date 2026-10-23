@@ -3,7 +3,7 @@ import { fmtHours, nameOf } from '@daily-status/core/format'
 import { useT } from '@daily-status/core/i18n'
 import { today } from '@daily-status/core/supabase'
 import { useDebounced } from '@daily-status/core/useDebounced'
-import { useQuery } from '@daily-status/core/useQuery'
+import { useLiveQuery } from '@daily-status/core/live'
 import { CardsSkeleton, PeopleSkeleton } from '../Skeletons'
 import { StatusCard } from '../StatusCard'
 import { Card, Field, Input, Notice, Select, Stat } from '../ui'
@@ -29,8 +29,8 @@ export const TeamFeed = ({
   const filters = { ...f, search: useDebounced(f.search) }
   // Metrics need a single day; with the date filter cleared they fall back to today.
   const day = f.date || today()
-  const [metrics] = useQuery(`metrics:${day}:${nonce}`, () => getTeamSummaryMetrics(day))
-  const [feed] = useQuery(`feed:${JSON.stringify(filters)}:${nonce}`, () =>
+  const [metrics] = useLiveQuery(`metrics:${day}:${nonce}`, () => getTeamSummaryMetrics(day))
+  const [feed] = useLiveQuery(`feed:${JSON.stringify(filters)}:${nonce}`, () =>
     getAllTeamStatuses(filters)
   )
   const m = metrics.state === 'ok' ? metrics.data : null

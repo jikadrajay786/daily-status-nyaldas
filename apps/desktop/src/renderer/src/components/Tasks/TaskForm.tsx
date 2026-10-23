@@ -4,7 +4,7 @@ import { nameOf } from '@daily-status/core/format'
 import { useT } from '@daily-status/core/i18n'
 import { today } from '@daily-status/core/supabase'
 import { dueFromDay, listPeople } from '@daily-status/core/taskService'
-import { useQuery } from '@daily-status/core/useQuery'
+import { useLiveQuery } from '@daily-status/core/live'
 import { useCreateTask } from '@daily-status/core/useTasks'
 import { Button, Card, Field, Input, Notice, Skeleton, TextArea } from '../ui'
 
@@ -20,7 +20,7 @@ const submitOnShortcut = (e: KeyboardEvent<HTMLFormElement>): void => {
 
 export const TaskForm = ({ onCreated }: { onCreated: () => void }): React.JSX.Element => {
   const { t } = useT()
-  const [people] = useQuery('task-people', listPeople)
+  const [people] = useLiveQuery('task-people', listPeople)
   const { run, busy, error } = useCreateTask()
   const [form, setForm] = useState(EMPTY)
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())

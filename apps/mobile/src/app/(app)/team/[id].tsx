@@ -1,3 +1,4 @@
+import { bumpLive, useLiveQuery } from '@daily-status/core/live'
 import {
   getIndividualUserHistory,
   getIndividualUserMetrics,
@@ -9,7 +10,7 @@ import { useT, type Key } from '@daily-status/core/i18n'
 import { deleteStatus } from '@daily-status/core/statusService'
 import { today } from '@daily-status/core/supabase'
 import { useDebounced } from '@daily-status/core/useDebounced'
-import { errMsg, useQuery } from '@daily-status/core/useQuery'
+import { errMsg } from '@daily-status/core/useQuery'
 import {
   addDays,
   clampRange,
@@ -39,7 +40,6 @@ import {
 } from '@/components/ui'
 import { usePullToRefresh } from '@/lib/refresh'
 import { uuidParam } from '@/lib/route'
-import { bumpData, useDataVersion } from '@/lib/dataVersion'
 import { useTheme } from '@/lib/theme'
 
 const PRESETS: readonly [Preset, Key][] = [
@@ -52,27 +52,27 @@ export default function Person(): React.JSX.Element {
   const { t, locale } = useT()
   const { colors: c } = useTheme()
   const id = uuidParam(useLocalSearchParams<{ id: string }>().id)
-  const version = useDataVersion()
   const now = today()
   const [preset, setPreset] = useState<Preset>('month')
   const [custom, setCustom] = useState(() => presetRange('month', now))
   const [search, setSearch] = useState('')
   const q = useDebounced(search)
   const range = preset === 'custom' ? clampRange(custom, now) : presetRange(preset, now)
-  const key = `${id}:${range.start}:${range.end}:${version}`
+  const key = `${id}:${range.start}:${range.end}`
 
-  const [dir] = useQuery(`directory:${version}`, getUserDirectoryWithStats)
-  const [metrics] = useQuery(`umetrics:${key}`, () =>
+  const [dir, , r1] = useLiveQuery('directory', getUserDirectoryWithStats)
+  const [metrics, , r2] = useLiveQuery(`umetrics:${key}`, () =>
     id ? getIndividualUserMetrics(id, range.start, range.end) : Promise.resolve(null)
   )
-  const [history] = useQuery(`uhistory:${key}:${q}`, () =>
+  const [history, , r3] = useLiveQuery(`uhistory:${key}:${q}`, () =>
     id ? getIndividualUserHistory(id, range.start, range.end, q) : Promise.resolve([])
   )
-  const [streak] = useQuery(`streak:${id}:${version}`, () =>
+  const [streak, , r4] = useLiveQuery(`streak:${id}`, () =>
     id ? getUserStreak(id) : Promise.resolve(0)
   )
-  const loading = [dir, metrics, history, streak].some((x) => x.state === 'loading')
-  const pull = usePullToRefresh(loading, bumpData)
+  const loading =
+    [dir, metrics, history, streak].some((x) => x.state === 'loading') || r1 || r2 || r3 || r4
+  const pull = usePullToRefresh(loading, bumpLive)
   const [confirming, setConfirming] = useState<string>()
   const [error, setError] = useState<Key>()
 
@@ -99,7 +99,7 @@ export default function Person(): React.JSX.Element {
       await deleteStatus(statusId)
       setError(undefined)
       setConfirming(undefined)
-      bumpData()
+      bumpLive()
     } catch (err) {
       setError(errMsg(err))
     }

@@ -3,7 +3,8 @@ import type { DailyStatus, Profile } from '@daily-status/core/database.types'
 import { useT, type Key } from '@daily-status/core/i18n'
 import { canChange, deleteStatus, listMyStatuses } from '@daily-status/core/statusService'
 import { useDebounced } from '@daily-status/core/useDebounced'
-import { errMsg, useQuery } from '@daily-status/core/useQuery'
+import { useLiveQuery } from '@daily-status/core/live'
+import { errMsg } from '@daily-status/core/useQuery'
 import { CardsSkeleton } from './Skeletons'
 import { StatusCard } from './StatusCard'
 import { Button, Input, Notice, PageHeader } from './ui'
@@ -14,7 +15,9 @@ export const StatusHistory = ({ profile, onEdit }: Props): React.JSX.Element => 
   const { t } = useT()
   const [search, setSearch] = useState('')
   const q = useDebounced(search)
-  const [list, reload] = useQuery(`history:${profile.id}:${q}`, () => listMyStatuses(profile.id, q))
+  const [list, reload] = useLiveQuery(`history:${profile.id}:${q}`, () =>
+    listMyStatuses(profile.id, q)
+  )
   const [confirming, setConfirming] = useState<string>()
   const [error, setError] = useState<Key>()
 

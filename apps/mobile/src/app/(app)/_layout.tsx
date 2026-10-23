@@ -1,4 +1,5 @@
 import { useT } from '@daily-status/core/i18n'
+import { useRealtimeSync } from '@daily-status/core/live'
 import { Tabs } from 'expo-router/js-tabs'
 import {
   CalendarCheck,
@@ -22,6 +23,7 @@ export default function AppLayout(): React.JSX.Element {
   const { t, lang } = useT()
   const { id, role } = useProfile()
   useReminders(id, lang)
+  useRealtimeSync(id)
   return (
     <Tabs tabBar={(props) => <LiquidTabBar {...props} />} screenOptions={{ headerShown: false }}>
       <Tabs.Screen

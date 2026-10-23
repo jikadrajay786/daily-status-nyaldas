@@ -1,3 +1,4 @@
+import { bumpLive, useLiveQuery } from '@daily-status/core/live'
 import {
   getAllTeamStatuses,
   getTeamSummaryMetrics,
@@ -7,7 +8,6 @@ import { fmtDate, fmtHours, fmtShort, initials, nameOf } from '@daily-status/cor
 import { useT } from '@daily-status/core/i18n'
 import { today } from '@daily-status/core/supabase'
 import { useDebounced } from '@daily-status/core/useDebounced'
-import { useQuery } from '@daily-status/core/useQuery'
 import { router } from 'expo-router'
 import { useState, type ReactNode } from 'react'
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native'
@@ -28,7 +28,6 @@ import {
   Title
 } from '@/components/ui'
 import { usePullToRefresh } from '@/lib/refresh'
-import { bumpData, useDataVersion } from '@/lib/dataVersion'
 import { useTheme } from '@/lib/theme'
 
 type Tab = 'feed' | 'people'
@@ -79,16 +78,20 @@ const Feed = ({
 }): React.JSX.Element => {
   const { t, locale } = useT()
   const { colors: c } = useTheme()
-  const version = useDataVersion()
   const filters = { ...f, search: useDebounced(f.search) }
   // Metrics need a single day; with "All dates" they fall back to today.
   const day = f.date || today()
   const dayLabel = day === today() ? t('today') : fmtDate(day, locale)
-  const [metrics] = useQuery(`metrics:${day}:${version}`, () => getTeamSummaryMetrics(day))
-  const [feed] = useQuery(`feed:${JSON.stringify(filters)}:${version}`, () =>
+  const [metrics, , metricsRefreshing] = useLiveQuery(`metrics:${day}`, () =>
+    getTeamSummaryMetrics(day)
+  )
+  const [feed, , feedRefreshing] = useLiveQuery(`feed:${JSON.stringify(filters)}`, () =>
     getAllTeamStatuses(filters)
   )
-  const pull = usePullToRefresh(metrics.state === 'loading' || feed.state === 'loading', bumpData)
+  const pull = usePullToRefresh(
+    metrics.state === 'loading' || feed.state === 'loading' || metricsRefreshing || feedRefreshing,
+    bumpLive
+  )
   const m = metrics.state === 'ok' ? metrics.data : null
 
   return (
@@ -196,9 +199,8 @@ const People = ({
 }): React.JSX.Element => {
   const { t, locale } = useT()
   const { colors: c } = useTheme()
-  const version = useDataVersion()
-  const [dir] = useQuery(`directory:${version}`, getUserDirectoryWithStats)
-  const pull = usePullToRefresh(dir.state === 'loading', bumpData)
+  const [dir, , refreshing] = useLiveQuery('directory', getUserDirectoryWithStats)
+  const pull = usePullToRefresh(dir.state === 'loading' || refreshing, bumpLive)
   const q = find.trim().toLowerCase()
   // The team list is small and already loaded, so filtering in memory keeps typing instant.
   const people =

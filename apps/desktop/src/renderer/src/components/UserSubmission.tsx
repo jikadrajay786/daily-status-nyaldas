@@ -11,7 +11,8 @@ import {
   saveStatus
 } from '@daily-status/core/statusService'
 import { today } from '@daily-status/core/supabase'
-import { errMsg, useQuery } from '@daily-status/core/useQuery'
+import { useLiveQuery } from '@daily-status/core/live'
+import { errMsg } from '@daily-status/core/useQuery'
 import { DescriptionEditor, type EditorChange } from '@daily-status/editor/DescriptionEditor'
 import { CardsSkeleton, FormSkeleton } from './Skeletons'
 import { StatusCard } from './StatusCard'
@@ -21,10 +22,10 @@ type Props = { profile: Profile; date: string; onDateChange: (d: string) => void
 
 export const UserSubmission = ({ profile, date, onDateChange }: Props): React.JSX.Element => {
   const { t } = useT()
-  const [row, reloadRow] = useQuery(`mine:${profile.id}:${date}`, () =>
+  const [row, reloadRow] = useLiveQuery(`mine:${profile.id}:${date}`, () =>
     getMyStatus(profile.id, date)
   )
-  const [recent, reloadRecent] = useQuery(`recent:${profile.id}`, () =>
+  const [recent, reloadRecent] = useLiveQuery(`recent:${profile.id}`, () =>
     listMyStatuses(profile.id, '', 5)
   )
   const [resets, setResets] = useState(0)
