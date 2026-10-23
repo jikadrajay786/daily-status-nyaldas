@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import type { TaskStatus } from '@daily-status/core/database.types'
 import type { Tone } from '@daily-status/core/format'
 import { initials, nameOf } from '@daily-status/core/format'
 import { useT } from '@daily-status/core/i18n'
@@ -5,9 +7,10 @@ import {
   STATUS_KEY,
   STATUS_TONE,
   TASK_STATUSES,
-  type Assignee
+  type Assignee,
+  type BoardTask
 } from '@daily-status/core/taskService'
-import { useAdminTasks } from '@daily-status/core/useTasks'
+import { useAdminTasks, useUpdateTaskStatus } from '@daily-status/core/useTasks'
 import { CardsSkeleton } from '../Skeletons'
 import { Avatar, Button, Notice, PageHeader } from '../ui'
 import { StatusPicker } from './StatusPicker'
@@ -71,6 +74,110 @@ const Progress = ({ done, total }: { done: number; total: number }): React.JSX.E
   )
 }
 
+// Native drag and drop (no library). The card moves at once and snaps back if the save fails; the status pills
+// on each card stay the keyboard and screen-reader way to do the same thing.
+const DRAG_TYPE = 'application/x-daily-status-task'
+
+const Board = ({ tasks }: { tasks: BoardTask[] }): React.JSX.Element => {
+  const { t } = useT()
+  const { run, error } = useUpdateTaskStatus()
+  const [moved, setMoved] = useState<Readonly<Record<string, TaskStatus>>>({})
+  const [dragging, setDragging] = useState<string | null>(null)
+  const [over, setOver] = useState<TaskStatus | null>(null)
+  const statusOf = (task: BoardTask): TaskStatus => moved[task.id] ?? task.status
+  const without = (id: string) => (m: Readonly<Record<string, TaskStatus>>) =>
+    Object.fromEntries(Object.entries(m).filter(([k]) => k !== id))
+  // Once the refetch agrees with a drop, the server copy takes over again.
+  const settled = tasks.find((task) => moved[task.id] === task.status)
+  if (settled) setMoved(without(settled.id))
+
+  const drop = async (status: TaskStatus): Promise<void> => {
+    const task = tasks.find((x) => x.id === dragging)
+    setDragging(null)
+    setOver(null)
+    if (!task || statusOf(task) === status) return
+    setMoved((m) => ({ ...m, [task.id]: status }))
+    if (!(await run({ taskId: task.id, status }))) setMoved(without(task.id))
+  }
+
+  return (
+    <>
+      <Progress
+        done={tasks.filter((task) => statusOf(task) === 'completed').length}
+        total={tasks.length}
+      />
+      <p className="-mt-3 text-xs text-fg-3">{t('boardDragHint')}</p>
+      {error && <Notice tone="bad">{t(error)}</Notice>}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(12rem,1fr))] gap-4">
+        {TASK_STATUSES.map((s) => {
+          const group = tasks.filter((task) => statusOf(task) === s)
+          return (
+            <section
+              key={s}
+              aria-label={t(STATUS_KEY[s])}
+              onDragOver={(e) => {
+                if (!e.dataTransfer.types.includes(DRAG_TYPE)) return
+                e.preventDefault()
+                e.dataTransfer.dropEffect = 'move'
+                if (over !== s) setOver(s)
+              }}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(null)
+              }}
+              onDrop={(e) => {
+                e.preventDefault()
+                void drop(s)
+              }}
+              className={`-m-2 flex min-h-48 flex-col gap-3 rounded-2xl p-2 outline-2 -outline-offset-2 transition-[background-color,outline-color] duration-150 ease-enter ${
+                over === s ? 'bg-selected outline-accent-fg outline-dashed' : 'outline-transparent'
+              }`}
+            >
+              <h2 className="flex items-center gap-2 text-xs font-semibold tracking-wider text-fg-2 uppercase">
+                <span aria-hidden className={`size-2 rounded-full ${DOT[STATUS_TONE[s]]}`} />
+                {t(STATUS_KEY[s])}
+                <span className="ml-auto tabular-nums">{group.length}</span>
+              </h2>
+              {group.map((task, i) => {
+                const shown = { ...task, status: s }
+                return (
+                  // Keyed by status too, so a card that moves column rises into its new place.
+                  <article
+                    key={`${task.id}:${s}`}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData(DRAG_TYPE, task.id)
+                      e.dataTransfer.effectAllowed = 'move'
+                      setDragging(task.id)
+                    }}
+                    onDragEnd={() => {
+                      setDragging(null)
+                      setOver(null)
+                    }}
+                    style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
+                    className={`flex animate-rise cursor-grab flex-col gap-3 rounded-xl border border-line bg-card p-4 transition-[box-shadow,translate,opacity] duration-200 ease-enter hover:-translate-y-0.5 hover:shadow-raised active:cursor-grabbing ${
+                      dragging === task.id ? 'opacity-40' : ''
+                    }`}
+                  >
+                    <h3 className="font-semibold tracking-tight text-fg">{task.title}</h3>
+                    <TaskMeta task={shown} />
+                    {task.description && (
+                      <p className="text-sm/relaxed whitespace-pre-line text-fg-2">
+                        {task.description}
+                      </p>
+                    )}
+                    <People people={task.assignees} />
+                    <StatusPicker task={shown} />
+                  </article>
+                )
+              })}
+            </section>
+          )
+        })}
+      </div>
+    </>
+  )
+}
+
 export const TaskBoard = (): React.JSX.Element => {
   const { t } = useT()
   const [tasks, reload] = useAdminTasks()
@@ -91,44 +198,7 @@ export const TaskBoard = (): React.JSX.Element => {
         ) : !tasks.data.length ? (
           <Notice>{t('taskBoardEmpty')}</Notice>
         ) : (
-          <>
-            <Progress
-              done={tasks.data.filter((task) => task.status === 'completed').length}
-              total={tasks.data.length}
-            />
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(12rem,1fr))] gap-4">
-              {TASK_STATUSES.map((s) => {
-                const group = tasks.data.filter((task) => task.status === s)
-                return (
-                  <section key={s} aria-label={t(STATUS_KEY[s])} className="flex flex-col gap-3">
-                    <h2 className="flex items-center gap-2 text-xs font-semibold tracking-wider text-fg-2 uppercase">
-                      <span aria-hidden className={`size-2 rounded-full ${DOT[STATUS_TONE[s]]}`} />
-                      {t(STATUS_KEY[s])}
-                      <span className="ml-auto tabular-nums">{group.length}</span>
-                    </h2>
-                    {group.map((task, i) => (
-                      // Keyed by status too, so a card that moves column rises into its new place.
-                      <article
-                        key={`${task.id}:${task.status}`}
-                        style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
-                        className="flex animate-rise flex-col gap-3 rounded-xl border border-line bg-card p-4 transition-[box-shadow,translate] duration-200 ease-enter hover:-translate-y-0.5 hover:shadow-raised"
-                      >
-                        <h3 className="font-semibold tracking-tight text-fg">{task.title}</h3>
-                        <TaskMeta task={task} />
-                        {task.description && (
-                          <p className="text-sm/relaxed whitespace-pre-line text-fg-2">
-                            {task.description}
-                          </p>
-                        )}
-                        <People people={task.assignees} />
-                        <StatusPicker task={task} />
-                      </article>
-                    ))}
-                  </section>
-                )
-              })}
-            </div>
-          </>
+          <Board tasks={tasks.data} />
         )}
       </div>
     </>
