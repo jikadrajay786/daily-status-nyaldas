@@ -8,12 +8,13 @@
     "scheme": "dailystatus",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "bundleIdentifier": "tech.propelius.dailystatus",
+      "bundleIdentifier": "com.app.dailystatus",
       "icon": "./assets/AppIcon.icon",
       "supportsTablet": true
     },
     "android": {
-      "package": "tech.propelius.dailystatus",
+      "package": "com.app.dailystatus",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#4f46e5",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -56,6 +57,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "acffb3f4-7873-41ef-bdf5-e4725c114e66"
+      }
+    },
+    "owner": "nyaldas"
   }
 }

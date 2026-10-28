@@ -2,7 +2,6 @@ import { useBusy } from '@daily-status/core/useBusy'
 import { nameOf } from '@daily-status/core/format'
 import { unlockMessage } from '@daily-status/core/appLock'
 import { LANG_LIST, LANGS, useT, type Key } from '@daily-status/core/i18n'
-import { db } from '@daily-status/core/supabase'
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
 import * as N from 'expo-notifications'
 import { Check } from 'lucide-react-native'
@@ -17,6 +16,7 @@ import { VStack } from '@/components/gs/vstack'
 import { Badge, Button, Card, Link, Notice, Screen, Segmented, Title } from '@/components/ui'
 import { askToUnlock, checkSupport, setLockOn, useLockOn, type Support } from '@/lib/appLock'
 import { useProfile } from '@/lib/profile'
+import { signOut } from '@/lib/push'
 import {
   allowExact,
   exactAllowed,
@@ -91,7 +91,7 @@ export default function Settings(): React.JSX.Element {
       <Section title={t('lockSection')}>
         <AppLockSetting />
       </Section>
-      <Button variant="ghost" busy={leaving} onPress={() => void leave(() => db().auth.signOut())}>
+      <Button variant="ghost" busy={leaving} onPress={() => void leave(signOut)}>
         {t('signOut')}
       </Button>
     </Screen>

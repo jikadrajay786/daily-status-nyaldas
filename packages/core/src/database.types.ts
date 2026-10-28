@@ -51,6 +51,8 @@ export type TaskAssignment = {
   task_id: string
   user_id: string
   assigned_at: string
+  // Last "not started yet" push, set by remind_pending_tasks().
+  reminded_at: string | null
 }
 
 // Exactly one of status_id / task_id is set. author_* are stamped by a trigger from the caller's profile.
@@ -176,6 +178,11 @@ export type Database = {
         Args: { p_kind: 'status' | 'task'; p_ids: string[] }
         Returns: { id: string; n: number }[]
       }
+      register_push_token: {
+        Args: { p_token: string; p_platform: 'ios' | 'android'; p_lang: 'en' | 'hi' | 'gu' }
+        Returns: undefined
+      }
+      unregister_push_token: { Args: { p_token: string }; Returns: undefined }
     }
     Enums: { task_status: TaskStatus }
   }
