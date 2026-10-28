@@ -53,6 +53,26 @@ export type TaskAssignment = {
   assigned_at: string
 }
 
+// Exactly one of status_id / task_id is set. author_* are stamped by a trigger from the caller's profile.
+export type Comment = {
+  id: string
+  status_id: string | null
+  task_id: string | null
+  author_id: string
+  author_name: string
+  author_role: Role
+  body: string
+  created_at: string
+}
+
+// An office holiday: counts like Sunday (updates optional). Admin-managed.
+export type Holiday = {
+  day: string
+  name: string
+  created_by: string | null
+  created_at: string
+}
+
 export type Database = {
   public: {
     Tables: {
@@ -112,6 +132,33 @@ export type Database = {
           }
         ]
       }
+      holidays: {
+        Row: Holiday
+        Insert: Pick<Holiday, 'day' | 'name'>
+        Update: Partial<Pick<Holiday, 'name'>>
+        Relationships: []
+      }
+      comments: {
+        Row: Comment
+        Insert: Pick<Comment, 'body'> & Partial<Pick<Comment, 'status_id' | 'task_id'>>
+        Update: never
+        Relationships: [
+          {
+            foreignKeyName: 'comments_status_id_fkey'
+            columns: ['status_id']
+            isOneToOne: false
+            referencedRelation: 'daily_statuses'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'comments_task_id_fkey'
+            columns: ['task_id']
+            isOneToOne: false
+            referencedRelation: 'tasks'
+            referencedColumns: ['id']
+          }
+        ]
+      }
     }
     Views: { daily_status_user_stats: { Row: UserStats; Relationships: [] } }
     Functions: {
@@ -124,6 +171,10 @@ export type Database = {
           p_user_ids: string[]
         }
         Returns: Task
+      }
+      comment_counts: {
+        Args: { p_kind: 'status' | 'task'; p_ids: string[] }
+        Returns: { id: string; n: number }[]
       }
     }
     Enums: { task_status: TaskStatus }

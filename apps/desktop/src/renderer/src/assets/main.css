@@ -69,51 +69,41 @@
   --fg-2: #d4d4d4;
   --fg-3: #a3a3a3;
 }
-[data-theme='cyberpunk'] {
-  color-scheme: dark;
-  --canvas: #0a0614;
-  --panel: #100a1f;
-  --card: #170d2b;
-  --field: #0d0820;
-  --line: #3d2066;
-  --hover: rgb(255 43 214 / 0.1);
-  --selected: rgb(255 43 214 / 0.18);
-  --fg: #f5f3ff;
-  --fg-2: #cdc6f2;
-  --fg-3: #a59bd4;
-  --accent: #ff2bd6;
-  --accent-hover: #ff66e3;
-  --on-accent: #14061f;
-  --accent-fg: #5ef2ff;
-  --ok: #39ff88;
-  --ok-fg: #39ff88;
-  --warn: #ffe14d;
-  --warn-fg: #ffe14d;
-  --bad: #ff4d6d;
-  --bad-fg: #ff8099;
-  --info: #00e5ff;
-  --info-fg: #5ef2ff;
-  --scrollbar-thumb: color-mix(in oklab, var(--accent) 50%, transparent);
-  --scrollbar-thumb-hover: color-mix(in oklab, var(--accent) 80%, transparent);
+/* Accent colours (core ACCENT_COLORS) on top of any theme; indigo is the default above. */
+[data-accent='emerald'],
+[data-accent='emerald'] [data-theme] {
+  --accent: light-dark(#047857, #10b981);
+  --accent-hover: light-dark(#065f46, #34d399);
+  --on-accent: light-dark(#ffffff, #022c22);
+  --accent-fg: light-dark(#047857, #6ee7b7);
 }
-[data-theme='sepia'] {
-  color-scheme: light;
-  --canvas: #f4ecd8;
-  --panel: #ebe0c4;
-  --card: #fbf5e6;
-  --field: #fffaf0;
-  --line: #d6c49b;
-  --hover: rgb(59 47 30 / 0.06);
-  --selected: rgb(59 47 30 / 0.1);
-  --fg: #3b2f1e;
-  --fg-2: #574630;
-  --fg-3: #6e5a3c;
-  --accent: #9a4a1c;
-  --accent-hover: #7f3c16;
-  --on-accent: #fff8ec;
-  --accent-fg: #84380f;
-  /* The default light green falls just under 4.5:1 on a green badge over the warm card. */
-  --ok-fg: #03614a;
+[data-accent='blue'],
+[data-accent='blue'] [data-theme] {
+  --accent: light-dark(#2563eb, #2563eb);
+  --accent-hover: light-dark(#1d4ed8, #1d4ed8);
+  --on-accent: light-dark(#ffffff, #ffffff);
+  --accent-fg: light-dark(#1d4ed8, #93c5fd);
+}
+[data-accent='purple'],
+[data-accent='purple'] [data-theme] {
+  --accent: light-dark(#7c3aed, #7c3aed);
+  --accent-hover: light-dark(#6d28d9, #6d28d9);
+  --on-accent: light-dark(#ffffff, #ffffff);
+  --accent-fg: light-dark(#6d28d9, #c4b5fd);
+}
+[data-accent='amber'],
+[data-accent='amber'] [data-theme] {
+  --accent: light-dark(#b45309, #f59e0b);
+  --accent-hover: light-dark(#92400e, #fbbf24);
+  --on-accent: light-dark(#ffffff, #1c1917);
+  --accent-fg: light-dark(#a1480a, #fcd34d);
+}
+[data-accent='cyan'],
+[data-accent='cyan'] [data-theme] {
+  --accent: light-dark(#0e7490, #22d3ee);
+  --accent-hover: light-dark(#155e75, #67e8f9);
+  --on-accent: light-dark(#ffffff, #083344);
+  --accent-fg: light-dark(#155e75, #67e8f9);
 }
 
 /*
@@ -273,6 +263,8 @@
   --ease-enter: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-exit: cubic-bezier(0.64, 0, 0.78, 0);
   --shadow-raised: 0 1px 2px var(--shadow-tint), 0 10px 24px -10px var(--shadow-tint);
+  /* Resting cards: just enough lift to separate them from the canvas. */
+  --shadow-soft: 0 1px 2px var(--shadow-tint);
   --animate-rise: rise 0.32s var(--ease-enter) both;
   --animate-fade: fade 0.18s var(--ease-enter) both;
   @keyframes rise {
@@ -356,4 +348,9 @@
   .skeleton {
     outline: 1px solid GrayText;
   }
+}
+
+/* A scrim darkens whatever is behind a dialog in every theme, so it is plain black, not a theme token. */
+dialog::backdrop {
+  background: rgb(0 0 0 / 0.45);
 }

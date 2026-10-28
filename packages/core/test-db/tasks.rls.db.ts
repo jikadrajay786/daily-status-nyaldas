@@ -12,10 +12,15 @@ import {
 import { errMsg } from '../src/useQuery'
 
 // Runs against a local stack only (`supabase start`): it creates and deletes real accounts.
-const { SUPABASE_URL: url = '', SUPABASE_ANON_KEY: anon = '', SUPABASE_SERVICE_ROLE_KEY: service = '' } =
-  process.env
+const {
+  SUPABASE_URL: url = '',
+  SUPABASE_ANON_KEY: anon = '',
+  SUPABASE_SERVICE_ROLE_KEY: service = ''
+} = process.env
 if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(url) || !anon || !service)
-  throw new Error('test:db needs SUPABASE_URL (local), SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY')
+  throw new Error(
+    'test:db needs SUPABASE_URL (local), SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY'
+  )
 
 const root = createClient<Database>(url, service, { auth: { persistSession: false } })
 const run = Date.now().toString(36)
@@ -23,9 +28,17 @@ const password = `pw-${run}-${Math.random().toString(36).slice(2)}`
 const people = { admin: '', asha: '', ravi: '', meena: '' }
 type Who = keyof typeof people
 
-const memory = (): { getItem: (k: string) => string | null; setItem: (k: string, v: string) => void; removeItem: (k: string) => void } => {
+const memory = (): {
+  getItem: (k: string) => string | null
+  setItem: (k: string, v: string) => void
+  removeItem: (k: string) => void
+} => {
   const m = new Map<string, string>()
-  return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => void m.set(k, v), removeItem: (k) => void m.delete(k) }
+  return {
+    getItem: (k) => m.get(k) ?? null,
+    setItem: (k, v) => void m.set(k, v),
+    removeItem: (k) => void m.delete(k)
+  }
 }
 
 // Points core's shared client at a fresh signed-in session, so the services run exactly as the apps do.
@@ -58,12 +71,19 @@ beforeAll(async () => {
     if (error) throw error
     people[who] = data.user.id
   }
-  const { error } = await root.from('profiles').update({ role: 'admin' } as never).eq('id', people.admin)
+  const { error } = await root
+    .from('profiles')
+    .update({ role: 'admin' } as never)
+    .eq('id', people.admin)
   if (error) throw error
 })
 
 afterAll(async () => {
-  await Promise.all(Object.values(people).filter(Boolean).map((id) => root.auth.admin.deleteUser(id)))
+  await Promise.all(
+    Object.values(people)
+      .filter(Boolean)
+      .map((id) => root.auth.admin.deleteUser(id))
+  )
 })
 
 describe('admin', () => {
@@ -109,13 +129,19 @@ describe('user', () => {
     const meena = await as('meena')
     expect(await listMyTasks(people.meena)).toEqual([])
     expect((await meena.from('tasks').select('id').eq('id', task.id)).data).toEqual([])
-    expect((await meena.from('task_assignments').select('id').eq('task_id', task.id)).data).toEqual([])
+    expect((await meena.from('task_assignments').select('id').eq('task_id', task.id)).data).toEqual(
+      []
+    )
   })
 
   it('moves their task pending → in_progress → completed', async () => {
     await as('asha')
-    expect((await updateTaskStatus({ taskId: task.id, status: 'in_progress' })).status).toBe('in_progress')
-    expect((await updateTaskStatus({ taskId: task.id, status: 'completed' })).status).toBe('completed')
+    expect((await updateTaskStatus({ taskId: task.id, status: 'in_progress' })).status).toBe(
+      'in_progress'
+    )
+    expect((await updateTaskStatus({ taskId: task.id, status: 'completed' })).status).toBe(
+      'completed'
+    )
   })
 
   it("cannot change the status of someone else's task", async () => {
@@ -125,21 +151,40 @@ describe('user', () => {
 
   it('cannot edit title, description or due date', async () => {
     const asha = await as('asha')
-    for (const patch of [{ title: 'Renamed' }, { description: 'Changed' }, { due_date: new Date().toISOString() }])
-      await rejectsWith(Promise.resolve(asha.from('tasks').update(patch).eq('id', task.id).select()).then((r) => {
-        if (r.error) throw r.error
-        return r
-      }), 'errDenied')
-    const { data } = await root.from('tasks').select('title, description').eq('id', task.id).single()
+    for (const patch of [
+      { title: 'Renamed' },
+      { description: 'Changed' },
+      { due_date: new Date().toISOString() }
+    ])
+      await rejectsWith(
+        Promise.resolve(asha.from('tasks').update(patch).eq('id', task.id).select()).then((r) => {
+          if (r.error) throw r.error
+          return r
+        }),
+        'errDenied'
+      )
+    const { data } = await root
+      .from('tasks')
+      .select('title, description')
+      .eq('id', task.id)
+      .single()
     expect(data).toEqual({ title: 'Restock shelf B', description: 'Count first, then order.' })
   })
 
   it('cannot change who the task is given to', async () => {
     const asha = await as('asha')
-    expect((await asha.from('task_assignments').insert({ task_id: task.id, user_id: people.meena })).error).not.toBeNull()
-    expect((await asha.from('task_assignments').delete().eq('task_id', task.id).select()).data).toEqual([])
+    expect(
+      (await asha.from('task_assignments').insert({ task_id: task.id, user_id: people.meena }))
+        .error
+    ).not.toBeNull()
+    expect(
+      (await asha.from('task_assignments').delete().eq('task_id', task.id).select()).data
+    ).toEqual([])
     expect((await asha.from('tasks').delete().eq('id', task.id).select()).data).toEqual([])
-    const { count } = await root.from('task_assignments').select('*', { count: 'exact', head: true }).eq('task_id', task.id)
+    const { count } = await root
+      .from('task_assignments')
+      .select('*', { count: 'exact', head: true })
+      .eq('task_id', task.id)
     expect(count).toBe(2)
   })
 })
@@ -158,7 +203,11 @@ describe('realtime', () => {
             got.push((p.new as Task).status)
           )
           .subscribe((s) =>
-            s === 'SUBSCRIBED' ? ok() : s === 'CHANNEL_ERROR' || s === 'TIMED_OUT' ? bad(new Error(s)) : undefined
+            s === 'SUBSCRIBED'
+              ? ok()
+              : s === 'CHANNEL_ERROR' || s === 'TIMED_OUT'
+                ? bad(new Error(s))
+                : undefined
           )
       )
       return got

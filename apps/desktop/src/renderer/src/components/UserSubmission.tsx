@@ -1,3 +1,4 @@
+import { useCommentCounts } from '@daily-status/core/commentService'
 import { useEffect, useState, type FormEvent } from 'react'
 import type { DailyStatus, Profile } from '@daily-status/core/database.types'
 import { fmtDate } from '@daily-status/core/format'
@@ -12,6 +13,7 @@ import {
   saveStatus
 } from '@daily-status/core/statusService'
 import { today } from '@daily-status/core/supabase'
+import { useDayOff } from '@daily-status/core/holidayService'
 import { useLiveQuery } from '@daily-status/core/live'
 import { errMsg } from '@daily-status/core/useQuery'
 import { DescriptionEditor, type EditorChange } from '@daily-status/editor/DescriptionEditor'
@@ -33,6 +35,11 @@ export const UserSubmission = ({ profile, date, editing, onChange }: Props): Rea
   )
   const [recent, reloadRecent] = useLiveQuery(`recent:${profile.id}`, () =>
     listMyStatuses(profile.id, '', 5)
+  )
+  const { off: dayOff, holiday } = useDayOff(date)
+  const counts = useCommentCounts(
+    'status',
+    recent.state === 'ok' ? recent.data.map((s) => s.id) : []
   )
   const [resets, setResets] = useState(0)
   const [saved, setSaved] = useState<string | null>(null)
@@ -58,6 +65,9 @@ export const UserSubmission = ({ profile, date, editing, onChange }: Props): Rea
             />
           </Field>
         </div>
+        {dayOff && row.state === 'ok' && !row.data && (
+          <Notice>{holiday ? t('holidayToday', { name: holiday }) : t('dayOff')}</Notice>
+        )}
         {row.state === 'loading' ? (
           <FormSkeleton />
         ) : row.state === 'error' ? (
@@ -119,6 +129,7 @@ export const UserSubmission = ({ profile, date, editing, onChange }: Props): Rea
             <StatusCard
               key={s.id}
               status={s}
+              comments={counts[s.id]}
               actions={
                 // The selected date's card above has its own Edit.
                 s.date !== date &&

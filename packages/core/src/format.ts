@@ -21,6 +21,20 @@ export const fmtShort = (d: string, locale: string): string =>
 
 export const fmtHours = (h: number, t: T): string => t('hoursShort', { n: +h.toFixed(2) })
 
+// Recent comments read as "5 min ago"; anything older than a day gets its date and time.
+export const fmtAgo = (iso: string, t: T, locale: string, now = Date.now()): string => {
+  const min = Math.floor((now - Date.parse(iso)) / 60_000)
+  if (min < 1) return t('justNow')
+  if (min < 60) return t('minAgo', { n: min })
+  if (min < 1440) return t('hoursAgo', { n: Math.floor(min / 60) })
+  return new Date(iso).toLocaleString(locale, {
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit'
+  })
+}
+
 export const nameOf = (p: Pick<Profile, 'full_name' | 'email'> | null): string =>
   p?.full_name || p?.email || '—'
 

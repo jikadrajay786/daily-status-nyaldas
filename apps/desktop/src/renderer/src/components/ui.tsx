@@ -14,11 +14,11 @@ import type { Tone } from '@daily-status/core/format'
 import { useT, type Key } from '@daily-status/core/i18n'
 
 const TONES: Record<Tone, string> = {
-  ok: 'bg-ok/15 text-ok-fg ring-ok/30',
-  info: 'bg-info/15 text-info-fg ring-info/30',
-  warn: 'bg-warn/15 text-warn-fg ring-warn/30',
-  bad: 'bg-bad/15 text-bad-fg ring-bad/30',
-  idle: 'bg-fg-3/15 text-fg-2 ring-fg-3/30'
+  ok: 'bg-ok/10 text-ok-fg ring-ok/20',
+  info: 'bg-info/10 text-info-fg ring-info/20',
+  warn: 'bg-warn/10 text-warn-fg ring-warn/20',
+  bad: 'bg-bad/10 text-bad-fg ring-bad/20',
+  idle: 'bg-fg-3/10 text-fg-2 ring-fg-3/25'
 }
 
 const TEXT: Record<Tone, string> = {
@@ -40,8 +40,9 @@ const CONTROL =
 
 export const Badge = ({ label, tone }: { label: string; tone: Tone }): React.JSX.Element => (
   <span
-    className={`inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 transition-colors duration-200 ease-enter ${TONES[tone]}`}
+    className={`inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 transition-colors duration-200 ease-enter ${TONES[tone]}`}
   >
+    <span aria-hidden className="size-1.5 rounded-full bg-current" />
     {label}
   </span>
 )
@@ -73,7 +74,7 @@ export const Card = ({
   className?: string
   children: ReactNode
 }): React.JSX.Element => (
-  <section className={`rounded-xl border border-line bg-card p-5 ${className}`}>
+  <section className={`rounded-xl border border-line bg-card p-5 shadow-soft ${className}`}>
     {title && (
       <header className="mb-4 flex items-center justify-between gap-3">
         <h2 className="text-xs font-semibold tracking-wider text-fg-2 uppercase">{title}</h2>
@@ -190,9 +191,9 @@ export const Stat = ({
   tone?: Tone
   loading?: boolean
 }): React.JSX.Element => (
-  <div className="rounded-xl border border-line bg-card p-4">
+  <div className="rounded-xl border border-line bg-card p-4 shadow-soft">
     <p className="text-xs font-medium text-fg-2">{label}</p>
-    <p className={`mt-2 text-2xl font-semibold tabular-nums ${TEXT[tone]}`}>
+    <p className={`mt-2 text-2xl font-semibold tracking-tight tabular-nums ${TEXT[tone]}`}>
       {loading ? <Skeleton className="h-[1lh] w-16" /> : value}
     </p>
     {sub ? (
@@ -319,3 +320,28 @@ export const Loading = ({
     </div>
   )
 }
+
+// An empty list: a soft icon, what's missing, and what to do about it.
+export const Empty = ({
+  icon,
+  title,
+  hint,
+  action
+}: {
+  icon: ReactNode
+  title: string
+  hint?: string
+  action?: ReactNode
+}): React.JSX.Element => (
+  <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-line px-6 py-12 text-center">
+    <span
+      aria-hidden
+      className="mb-2 grid size-14 place-items-center rounded-full bg-accent/10 text-accent-fg"
+    >
+      {icon}
+    </span>
+    <p className="font-semibold text-fg">{title}</p>
+    {hint && <p className="max-w-sm text-sm text-fg-2">{hint}</p>}
+    {action && <div className="mt-3">{action}</div>}
+  </div>
+)

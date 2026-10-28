@@ -87,6 +87,20 @@ export const listAllTasks = async (): Promise<BoardTask[]> =>
     assignees: task_assignments.flatMap((a) => (a.profile ? [a.profile] : []))
   }))
 
+// Staff only see themselves among the assignees (RLS); admins see everyone.
+export const getTask = async (id: string): Promise<BoardTask | null> => {
+  const row = unwrap(
+    await db()
+      .from('tasks')
+      .select('*, task_assignments(profile:profiles(id, full_name, email))')
+      .eq('id', id)
+      .maybeSingle()
+  )
+  if (!row) return null
+  const { task_assignments, ...t } = row
+  return { ...t, assignees: task_assignments.flatMap((a) => (a.profile ? [a.profile] : [])) }
+}
+
 // Through the user's own assignments: admins can read every task, but this list is only theirs.
 export const listMyTasks = async (userId: string): Promise<Task[]> =>
   unwrap(

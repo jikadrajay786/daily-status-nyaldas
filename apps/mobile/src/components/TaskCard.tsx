@@ -12,7 +12,7 @@ import { useUpdateTaskStatus } from '@daily-status/core/useTasks'
 import * as Haptics from 'expo-haptics'
 import { Check } from 'lucide-react-native'
 import { useRef, useState } from 'react'
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Pressable } from 'react-native'
 import ReanimatedSwipeable, {
   type SwipeableMethods
 } from 'react-native-gesture-handler/ReanimatedSwipeable'
@@ -26,13 +26,25 @@ import Animated, {
   withTiming,
   type SharedValue
 } from 'react-native-reanimated'
+import { withUniwind } from 'uniwind'
+import { CommentCount } from './CommentThread'
+import { Box } from '@/components/gs/box'
+import { HStack } from '@/components/gs/hstack'
+import { Text } from '@/components/gs/text'
+import { VStack } from '@/components/gs/vstack'
 import { Badge, Card, Notice } from '@/components/ui'
+import { TONE_ACCENT, TONE_TEXT } from '@/lib/tones'
 import { toneColors, useTheme } from '@/lib/theme'
 
 // One spring and one fade for the whole screen, so every movement feels like the same material.
 const SPRING = { damping: 20, stiffness: 300 }
 const FADE = { duration: 200 }
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable)
+const CheckIcon = withUniwind(Check)
+// The swipeable only takes a style object: it rounds the corners the green action shows through.
+const SWIPE_SHAPE = { borderRadius: 14 }
+// Colours that fade between statuses are interpolated by Reanimated, so they stay palette values; everything
+// static is a class. Uniwind's components back Reanimated's views too, so both sit on the same view.
 
 // Shows the choice straight away and buzzes; the realtime refetch then confirms it, a failure snaps it back.
 type StatusChange = {
@@ -71,8 +83,10 @@ const StatusBadge = ({ status }: { status: TaskStatus }): React.JSX.Element => {
   }))
   const label = useAnimatedStyle(() => ({ color: withTiming(tone.fg, FADE) }))
   return (
-    <Animated.View style={[s.badge, box]}>
-      <Animated.Text style={[s.badgeText, label]}>{t(STATUS_KEY[status])}</Animated.Text>
+    <Animated.View className="rounded-full border px-2.5 py-[3px]" style={box}>
+      <Animated.Text className="text-[13px] font-semibold" style={label}>
+        {t(STATUS_KEY[status])}
+      </Animated.Text>
     </Animated.View>
   )
 }
@@ -92,7 +106,8 @@ const Option = ({
 }): React.JSX.Element => {
   const { t } = useT()
   const { colors: c } = useTheme()
-  const tone = toneColors(c, STATUS_TONE[status])
+  const toneName = STATUS_TONE[status]
+  const tone = toneColors(c, toneName)
   const scale = useSharedValue(1)
   const style = useAnimatedStyle(() => ({
     transform: [{ scale: scale.get() }],
@@ -108,14 +123,17 @@ const Option = ({
       onPress={onPress}
       onPressIn={() => scale.set(withSpring(0.96, SPRING))}
       onPressOut={() => scale.set(withSpring(1, SPRING))}
-      style={[s.option, style]}
+      className="min-h-12 grow basis-[45%] items-center justify-center rounded-xl border px-3"
+      style={style}
     >
-      <View style={s.optionInner}>
-        {saving && <ActivityIndicator size="small" color={tone.fg} />}
-        <Text style={[s.optionText, { color: picked ? tone.fg : c.fg2 }]}>
+      <HStack className="items-center gap-1.5">
+        {saving && <ActivityIndicator size="small" colorClassName={TONE_ACCENT[toneName]} />}
+        <Text
+          className={`text-center text-[15px] font-semibold ${picked ? TONE_TEXT[toneName] : 'text-fg-2'}`}
+        >
           {t(STATUS_KEY[status])}
         </Text>
-      </View>
+      </HStack>
     </AnimatedPressable>
   )
 }
@@ -123,24 +141,30 @@ const Option = ({
 // Revealed behind the card while swiping left; the tick grows as the swipe nears the point where it counts.
 const DoneAction = ({ progress }: { progress: SharedValue<number> }): React.JSX.Element => {
   const { t } = useT()
-  const { colors: c } = useTheme()
   const icon = useAnimatedStyle(() => ({
     transform: [{ scale: interpolate(progress.value, [0, 1], [0.6, 1.1], 'clamp') }],
     opacity: interpolate(progress.value, [0, 0.5, 1], [0, 0.6, 1], 'clamp')
   }))
   return (
-    <View style={[s.action, { backgroundColor: c.ok }]}>
-      <Animated.View style={[s.actionInner, icon]}>
-        <Check color={c.onAccent} size={26} strokeWidth={3} />
-        <Text style={[s.actionText, { color: c.onAccent }]}>{t('tsCompleted')}</Text>
+    <Box className="ml-3 flex-1 items-end justify-center rounded-[14px] bg-ok">
+      <Animated.View className="items-center gap-1 px-6" style={icon}>
+        <CheckIcon colorClassName="accent-on-accent" size={26} strokeWidth={3} />
+        <Text className="text-[14px] font-bold text-on-accent">{t('tsCompleted')}</Text>
       </Animated.View>
-    </View>
+    </Box>
   )
 }
 
-export const TaskCard = ({ task, index }: { task: Task; index: number }): React.JSX.Element => {
+export const TaskCard = ({
+  task,
+  index,
+  comments
+}: {
+  task: Task
+  index: number
+  comments?: number
+}): React.JSX.Element => {
   const { t, locale } = useT()
-  const { colors } = useTheme()
   const { shown, pick, busy, error } = useStatusChange(task)
   const swipe = useRef<SwipeableMethods>(null)
   const finished = shown === 'completed'
@@ -159,7 +183,7 @@ export const TaskCard = ({ task, index }: { task: Task; index: number }): React.
         friction={1.5}
         rightThreshold={72}
         overshootRight={false}
-        containerStyle={s.swipe}
+        containerStyle={SWIPE_SHAPE}
         renderRightActions={(progress) => <DoneAction progress={progress} />}
         onSwipeableOpen={() => {
           swipe.current?.close()
@@ -167,28 +191,32 @@ export const TaskCard = ({ task, index }: { task: Task; index: number }): React.
         }}
       >
         {/* Swiping is a shortcut only: the status buttons below do the same for screen readers and switches. */}
-        <View>
+        <Box>
           <Card>
-            <View style={s.gap}>
-              <Text accessibilityRole="header" style={[s.title, { color: colors.fg }]}>
+            <VStack className="gap-3">
+              <Text
+                accessibilityRole="header"
+                className="text-[18px] font-semibold tracking-[-0.2px] text-fg"
+              >
                 {task.title}
               </Text>
-              <View style={s.meta}>
+              <HStack className="flex-wrap items-center gap-2">
                 <StatusBadge status={shown} />
                 {isOverdue({ ...task, status: shown }) && (
                   <Badge label={t('taskOverdue')} tone="warn" />
                 )}
-                <Text style={[s.due, { color: colors.fg2 }]}>
+                <Text className="text-[14px] text-fg-2">
                   {t('taskDueOn', { date: fmtShort(dueDay(task.due_date), locale) })}
                 </Text>
-              </View>
+                <CommentCount n={comments} />
+              </HStack>
               {task.description && (
-                <Text style={[s.body, { color: colors.fg2 }]}>{task.description}</Text>
+                <Text className="text-[15px] leading-[22px] text-fg-2">{task.description}</Text>
               )}
-              <View
+              <HStack
                 accessibilityRole="radiogroup"
                 accessibilityLabel={t('taskStatus')}
-                style={s.row}
+                className="flex-wrap gap-2"
               >
                 {TASK_STATUSES.map((st) => (
                   <Option
@@ -200,45 +228,12 @@ export const TaskCard = ({ task, index }: { task: Task; index: number }): React.
                     onPress={() => void pick(st)}
                   />
                 ))}
-              </View>
+              </HStack>
               {error && <Notice tone="bad">{t(error)}</Notice>}
-            </View>
+            </VStack>
           </Card>
-        </View>
+        </Box>
       </ReanimatedSwipeable>
     </Animated.View>
   )
 }
-
-const s = StyleSheet.create({
-  swipe: { borderRadius: 14 },
-  gap: { gap: 12 },
-  title: { fontSize: 18, fontWeight: '600', letterSpacing: -0.2 },
-  meta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
-  due: { fontSize: 14 },
-  body: { fontSize: 15, lineHeight: 22 },
-  badge: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
-  badgeText: { fontSize: 13, fontWeight: '600' },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  option: {
-    flexGrow: 1,
-    flexBasis: '45%',
-    minHeight: 48,
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
-  optionText: { fontSize: 15, fontWeight: '600', textAlign: 'center' },
-  optionInner: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  action: {
-    flex: 1,
-    borderRadius: 14,
-    marginLeft: 12,
-    justifyContent: 'center',
-    alignItems: 'flex-end'
-  },
-  actionInner: { alignItems: 'center', gap: 4, paddingHorizontal: 24 },
-  actionText: { fontSize: 14, fontWeight: '700' }
-})

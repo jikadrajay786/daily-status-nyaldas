@@ -1,14 +1,18 @@
+import { ListTodo } from 'lucide-react'
+import { useCommentCounts } from '@daily-status/core/commentService'
 import type { Profile } from '@daily-status/core/database.types'
 import { useT } from '@daily-status/core/i18n'
 import { useUserTasks } from '@daily-status/core/useTasks'
 import { CardsSkeleton } from '../Skeletons'
-import { Button, Card, Notice, PageHeader } from '../ui'
+import { Button, Card, Notice, PageHeader, Empty } from '../ui'
+import { CommentsButton } from '../CommentsButton'
 import { StatusPicker } from './StatusPicker'
 import { TaskMeta } from './TaskMeta'
 
 export const MyTasks = ({ profile }: { profile: Profile }): React.JSX.Element => {
   const { t } = useT()
   const [tasks, reload] = useUserTasks(profile.id)
+  const counts = useCommentCounts('task', tasks.state === 'ok' ? tasks.data.map((x) => x.id) : [])
   return (
     <>
       <PageHeader title={t('navTasks')} subtitle={t('tasksSubtitle')} />
@@ -31,15 +35,20 @@ export const MyTasks = ({ profile }: { profile: Profile }): React.JSX.Element =>
                 {task.description && (
                   <p className="mt-3 text-sm whitespace-pre-line text-fg-2">{task.description}</p>
                 )}
-                <div className="mt-4 border-t border-line pt-4">
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
                   <StatusPicker task={task} />
+                  <CommentsButton target={{ kind: 'task', id: task.id }} count={counts[task.id]} />
                 </div>
               </Card>
             </li>
           ))}
         </ul>
       ) : (
-        <Notice>{t('tasksEmpty')}</Notice>
+        <Empty
+          icon={<ListTodo className="size-7" />}
+          title={t('tasksEmpty')}
+          hint={t('tasksEmptyHint')}
+        />
       )}
     </>
   )

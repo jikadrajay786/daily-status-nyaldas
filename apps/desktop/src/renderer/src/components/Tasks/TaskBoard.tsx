@@ -1,3 +1,5 @@
+import { ClipboardList } from 'lucide-react'
+import { useCommentCounts } from '@daily-status/core/commentService'
 import { useState } from 'react'
 import type { TaskStatus } from '@daily-status/core/database.types'
 import type { Tone } from '@daily-status/core/format'
@@ -12,7 +14,8 @@ import {
 } from '@daily-status/core/taskService'
 import { useAdminTasks, useUpdateTaskStatus } from '@daily-status/core/useTasks'
 import { CardsSkeleton } from '../Skeletons'
-import { Avatar, Button, Notice, PageHeader } from '../ui'
+import { Avatar, Button, Notice, PageHeader, Empty } from '../ui'
+import { CommentsButton } from '../CommentsButton'
 import { StatusPicker } from './StatusPicker'
 import { TaskForm } from './TaskForm'
 import { TaskMeta } from './TaskMeta'
@@ -27,7 +30,7 @@ const DOT: Record<Tone, string> = {
 const PILE = 4
 
 // Overlapping avatars keep a card short however many people share it; the names stay readable underneath.
-const People = ({ people }: { people: Assignee[] }): React.JSX.Element => {
+export const People = ({ people }: { people: Assignee[] }): React.JSX.Element => {
   const { t } = useT()
   const names = people.map(nameOf).join(', ')
   return (
@@ -84,6 +87,10 @@ const Board = ({ tasks }: { tasks: BoardTask[] }): React.JSX.Element => {
   const [moved, setMoved] = useState<Readonly<Record<string, TaskStatus>>>({})
   const [dragging, setDragging] = useState<string | null>(null)
   const [over, setOver] = useState<TaskStatus | null>(null)
+  const counts = useCommentCounts(
+    'task',
+    tasks.map((x) => x.id)
+  )
   const statusOf = (task: BoardTask): TaskStatus => moved[task.id] ?? task.status
   const without = (id: string) => (m: Readonly<Record<string, TaskStatus>>) =>
     Object.fromEntries(Object.entries(m).filter(([k]) => k !== id))
@@ -167,6 +174,12 @@ const Board = ({ tasks }: { tasks: BoardTask[] }): React.JSX.Element => {
                     )}
                     <People people={task.assignees} />
                     <StatusPicker task={shown} />
+                    <span className="self-start">
+                      <CommentsButton
+                        target={{ kind: 'task', id: task.id }}
+                        count={counts[task.id]}
+                      />
+                    </span>
                   </article>
                 )
               })}
@@ -196,7 +209,11 @@ export const TaskBoard = (): React.JSX.Element => {
             </Button>
           </div>
         ) : !tasks.data.length ? (
-          <Notice>{t('taskBoardEmpty')}</Notice>
+          <Empty
+            icon={<ClipboardList className="size-7" />}
+            title={t('taskBoardEmpty')}
+            hint={t('taskBoardEmptyHint')}
+          />
         ) : (
           <Board tasks={tasks.data} />
         )}

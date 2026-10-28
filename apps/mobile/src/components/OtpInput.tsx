@@ -1,6 +1,6 @@
 import { CODE_LENGTH } from '@daily-status/core/useVerifyCode'
 import { useEffect, useRef, useState } from 'react'
-import { StyleSheet, Text, TextInput, View, type TextInputInstance } from 'react-native'
+import { TextInput, type TextInputInstance } from 'react-native'
 import Animated, {
   ReduceMotion,
   useAnimatedStyle,
@@ -10,7 +10,9 @@ import Animated, {
   withSequence,
   withTiming
 } from 'react-native-reanimated'
-import { tint, useTheme } from '@/lib/theme'
+import { Box } from './gs/box'
+import { HStack } from './gs/hstack'
+import { Text } from './gs/text'
 
 type Props = {
   value: string
@@ -25,7 +27,7 @@ type Props = {
 
 const BOXES = Array.from({ length: CODE_LENGTH }, (_, i) => i)
 
-const Caret = ({ color }: { color: string }): React.JSX.Element => {
+const Caret = (): React.JSX.Element => {
   const opacity = useSharedValue(1)
   useEffect(() => {
     opacity.set(
@@ -39,7 +41,12 @@ const Caret = ({ color }: { color: string }): React.JSX.Element => {
     )
   }, [opacity])
   const style = useAnimatedStyle(() => ({ opacity: opacity.get() }))
-  return <Animated.View style={[s.caret, { backgroundColor: color }, style]} />
+  // Reanimated views carry only the animated values; the drawn parts are Uniwind-styled boxes.
+  return (
+    <Animated.View style={style}>
+      <Box className="h-[26px] w-0.5 rounded-[1px] bg-fg" />
+    </Animated.View>
+  )
 }
 
 // One real TextInput laid over six drawn boxes. Separate inputs per digit break paste, the keyboard's code
@@ -53,7 +60,6 @@ export const OtpInput = ({
   disabled,
   rejected
 }: Props): React.JSX.Element => {
-  const { colors: c } = useTheme()
   const input = useRef<TextInputInstance>(null)
   const [focused, setFocused] = useState(false)
   const reduced = useReducedMotion()
@@ -70,35 +76,37 @@ export const OtpInput = ({
   const shake = useAnimatedStyle(() => ({ transform: [{ translateX: shift.get() }] }))
 
   return (
-    <View style={s.wrap}>
-      <Animated.View style={[s.row, shake]} importantForAccessibility="no-hide-descendants">
-        {BOXES.map((i) => {
-          const here = focused && !disabled && i === active
-          const filled = value[i] ? c.fg3 : c.line
-          const border = invalid ? c.bad : here ? c.accent : filled
-          return (
-            <View
-              key={i}
-              style={[
-                s.box,
-                i === CODE_LENGTH / 2 && s.split,
-                {
-                  borderColor: border,
-                  backgroundColor: here ? tint(c.accent, 0.06) : c.field,
-                  opacity: disabled ? 0.6 : 1
-                }
-              ]}
-            >
-              {value[i] ? (
-                <Text maxFontSizeMultiplier={1.4} style={[s.digit, { color: c.fg }]}>
-                  {value[i]}
-                </Text>
-              ) : (
-                here && <Caret color={c.fg} />
-              )}
-            </View>
-          )
-        })}
+    <Box className="self-center">
+      <Animated.View style={shake} importantForAccessibility="no-hide-descendants">
+        <HStack className="items-center gap-2">
+          {BOXES.map((i) => {
+            const here = focused && !disabled && i === active
+            const border = invalid
+              ? 'border-bad'
+              : here
+                ? 'border-accent'
+                : value[i]
+                  ? 'border-fg-3'
+                  : 'border-line'
+            return (
+              <Box
+                key={i}
+                className={`h-14 w-[46px] items-center justify-center rounded-xl border-2 ${border} ${here ? 'bg-accent/6' : 'bg-field'} ${disabled ? 'opacity-60' : ''} ${i === CODE_LENGTH / 2 ? 'ml-2.5' : ''}`}
+              >
+                {value[i] ? (
+                  <Text
+                    maxFontSizeMultiplier={1.4}
+                    className="text-[24px] font-semibold tabular-nums text-fg"
+                  >
+                    {value[i]}
+                  </Text>
+                ) : (
+                  here && <Caret />
+                )}
+              </Box>
+            )
+          })}
+        </HStack>
       </Animated.View>
       <TextInput
         ref={input}
@@ -119,26 +127,9 @@ export const OtpInput = ({
         accessibilityLabel={label}
         accessibilityHint={hint}
         accessibilityState={{ disabled }}
-        style={[StyleSheet.absoluteFill, s.hidden]}
+        // Invisible but still on screen and tappable: an off-screen or zero-size field loses focus and autofill.
+        className="absolute inset-0 text-transparent opacity-[0.02]"
       />
-    </View>
+    </Box>
   )
 }
-
-const s = StyleSheet.create({
-  wrap: { alignSelf: 'center' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  box: {
-    width: 46,
-    height: 56,
-    borderRadius: 12,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  split: { marginLeft: 10 },
-  digit: { fontSize: 24, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  caret: { width: 2, height: 26, borderRadius: 1 },
-  // Invisible but still on screen and tappable: an off-screen or zero-size field loses focus and autofill.
-  hidden: { opacity: 0.02, color: 'transparent' }
-})

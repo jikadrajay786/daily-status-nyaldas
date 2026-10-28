@@ -1,4 +1,7 @@
+import { Inbox } from 'lucide-react'
+import { useCommentCounts } from '@daily-status/core/commentService'
 import { getAllTeamStatuses, getTeamSummaryMetrics } from '@daily-status/core/adminService'
+import { useDayOff } from '@daily-status/core/holidayService'
 import { fmtHours, nameOf } from '@daily-status/core/format'
 import { useT } from '@daily-status/core/i18n'
 import { today } from '@daily-status/core/supabase'
@@ -6,7 +9,7 @@ import { useDebounced } from '@daily-status/core/useDebounced'
 import { useLiveQuery } from '@daily-status/core/live'
 import { CardsSkeleton, PeopleSkeleton } from '../Skeletons'
 import { StatusCard } from '../StatusCard'
-import { Card, Field, Input, Notice, Select, Stat } from '../ui'
+import { Card, Field, Input, Notice, Select, Stat, Empty } from '../ui'
 
 export type FeedFilters = { date: string; userId: string; search: string }
 
@@ -33,6 +36,8 @@ export const TeamFeed = ({
   const [feed] = useLiveQuery(`feed:${JSON.stringify(filters)}:${nonce}`, () =>
     getAllTeamStatuses(filters)
   )
+  const { off: dayOff, holiday } = useDayOff(day)
+  const counts = useCommentCounts('status', feed.state === 'ok' ? feed.data.map((s) => s.id) : [])
   const m = metrics.state === 'ok' ? metrics.data : null
 
   return (
@@ -103,9 +108,11 @@ export const TeamFeed = ({
           ) : feed.state === 'error' ? (
             <Notice tone="bad">{t(feed.message)}</Notice>
           ) : feed.data.length ? (
-            feed.data.map((s) => <StatusCard key={s.id} status={s} author={s.profile} />)
+            feed.data.map((s) => (
+              <StatusCard key={s.id} status={s} author={s.profile} comments={counts[s.id]} />
+            ))
           ) : (
-            <Notice>{t('noFeed')}</Notice>
+            <Empty icon={<Inbox className="size-7" />} title={t('noFeed')} hint={t('noFeedHint')} />
           )}
         </section>
 
@@ -132,7 +139,11 @@ export const TeamFeed = ({
               ))}
             </ul>
           ) : (
-            <Notice tone="ok">{t('everyoneDone')}</Notice>
+            <Notice tone={dayOff ? 'idle' : 'ok'}>
+              {holiday
+                ? t('teamHoliday', { name: holiday })
+                : t(dayOff ? 'teamDayOff' : 'everyoneDone')}
+            </Notice>
           )}
         </Card>
       </div>

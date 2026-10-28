@@ -1,12 +1,12 @@
-import { Check } from 'lucide-react'
+import { Check, X } from 'lucide-react'
 import { useState, type FormEvent, type KeyboardEvent } from 'react'
-import { nameOf } from '@daily-status/core/format'
+import { initials, nameOf } from '@daily-status/core/format'
 import { useT } from '@daily-status/core/i18n'
 import { today } from '@daily-status/core/supabase'
-import { dueFromDay, listPeople } from '@daily-status/core/taskService'
+import { dueFromDay, listPeople, type Assignee } from '@daily-status/core/taskService'
 import { useLiveQuery } from '@daily-status/core/live'
 import { useCreateTask } from '@daily-status/core/useTasks'
-import { Button, Card, Field, Input, Notice, Skeleton, TextArea } from '../ui'
+import { Avatar, Button, Card, Field, Input, Notice, Skeleton, TextArea } from '../ui'
 
 const EMPTY = { title: '', description: '', due: '' }
 const SUBMIT_KEYS = /Mac/.test(navigator.userAgent) ? '⌘ Enter' : 'Ctrl Enter'
@@ -18,6 +18,116 @@ const submitOnShortcut = (e: KeyboardEvent<HTMLFormElement>): void => {
   e.currentTarget.requestSubmit()
 }
 
+// Search, tick boxes and the picked people as removable chips, so a long staff list stays manageable.
+const PeopleList = ({
+  people,
+  picked,
+  onChange
+}: {
+  people: readonly Assignee[]
+  picked: ReadonlySet<string>
+  onChange: (next: ReadonlySet<string>) => void
+}): React.JSX.Element => {
+  const { t } = useT()
+  const [q, setQ] = useState('')
+  const needle = q.trim().toLowerCase()
+  const rows = people.filter(
+    (p) => !needle || `${p.full_name ?? ''} ${p.email ?? ''}`.toLowerCase().includes(needle)
+  )
+  const allShown = rows.length > 0 && rows.every((p) => picked.has(p.id))
+  const toggle = (id: string): void =>
+    onChange(new Set(picked.has(id) ? [...picked].filter((x) => x !== id) : [...picked, id]))
+
+  if (!people.length) return <p className="text-fg-2">{t('taskPeopleEmpty')}</p>
+  return (
+    <>
+      {picked.size > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {people
+            .filter((p) => picked.has(p.id))
+            .map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => toggle(p.id)}
+                aria-label={t('removePerson', { name: nameOf(p) })}
+                className="flex items-center gap-1 rounded-full bg-accent/15 py-1 pr-2 pl-3 font-medium text-accent-fg transition-colors duration-150 ease-enter hover:bg-accent/25"
+              >
+                {nameOf(p)}
+                <X aria-hidden className="size-3.5" />
+              </button>
+            ))}
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        {people.length > 6 && (
+          <div className="min-w-48 flex-1">
+            <Input
+              type="search"
+              aria-label={t('searchPeople')}
+              placeholder={t('searchPeople')}
+              value={q}
+              onChange={(e) => setQ(e.currentTarget.value)}
+            />
+          </div>
+        )}
+        {rows.length > 1 && (
+          <Button
+            variant="ghost"
+            onClick={() =>
+              onChange(
+                new Set(
+                  allShown
+                    ? [...picked].filter((id) => !rows.some((p) => p.id === id))
+                    : [...picked, ...rows.map((p) => p.id)]
+                )
+              )
+            }
+          >
+            {allShown ? t('clearAll') : t('pickAll')}
+          </Button>
+        )}
+      </div>
+      <div className="grid max-h-72 grid-cols-[repeat(auto-fit,minmax(16rem,1fr))] gap-1 overflow-y-auto rounded-lg border border-line p-1.5 [scrollbar-gutter:stable]">
+        {rows.length ? (
+          rows.map((p) => (
+            // The real checkbox stays for keyboards and screen readers; the drawn box only animates the tick.
+            <label
+              key={p.id}
+              className="group flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors duration-150 ease-enter hover:bg-hover has-checked:bg-selected has-focus-visible:outline-2 has-focus-visible:outline-accent-fg"
+            >
+              <input
+                type="checkbox"
+                checked={picked.has(p.id)}
+                onChange={() => toggle(p.id)}
+                className="sr-only"
+              />
+              <Avatar text={initials(p)} />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-fg">{nameOf(p)}</span>
+                {p.full_name && p.email && (
+                  <span className="truncate text-xs text-fg-3">{p.email}</span>
+                )}
+              </span>
+              <span
+                aria-hidden
+                className="grid size-4.5 shrink-0 place-items-center rounded border border-fg-3 bg-field transition-colors duration-150 ease-enter group-has-checked:border-accent group-has-checked:bg-accent"
+              >
+                <Check
+                  strokeWidth={3}
+                  className="size-3 scale-50 text-on-accent opacity-0 transition-[opacity,scale] duration-200 ease-enter group-has-checked:scale-100 group-has-checked:opacity-100"
+                />
+              </span>
+            </label>
+          ))
+        ) : (
+          <p className="px-2 py-1.5 text-fg-2">{t('noPeopleMatch', { q: q.trim() })}</p>
+        )}
+      </div>
+    </>
+  )
+}
+
 export const TaskForm = ({ onCreated }: { onCreated: () => void }): React.JSX.Element => {
   const { t } = useT()
   const [people] = useLiveQuery('task-people', listPeople)
@@ -27,9 +137,6 @@ export const TaskForm = ({ onCreated }: { onCreated: () => void }): React.JSX.El
   const [done, setDone] = useState(false)
   const set = (k: keyof typeof EMPTY) => (e: { currentTarget: { value: string } }) =>
     setForm({ ...form, [k]: e.currentTarget.value })
-
-  const toggle = (id: string): void =>
-    setPicked((p) => (p.has(id) ? new Set([...p].filter((x) => x !== id)) : new Set([...p, id])))
 
   const submit = async (e: FormEvent): Promise<void> => {
     e.preventDefault()
@@ -65,43 +172,20 @@ export const TaskForm = ({ onCreated }: { onCreated: () => void }): React.JSX.El
         <Field label={t('taskDue')}>
           <Input type="date" required min={today()} value={form.due} onChange={set('due')} />
         </Field>
-        <fieldset className="flex flex-col gap-1.5 text-sm">
-          <legend className="mb-1.5 font-medium text-fg-2">{t('taskPeople')}</legend>
-          <span className="text-xs text-fg-3">{t('taskPeopleHint')}</span>
-          <div className="mt-1 grid max-h-60 grid-cols-[repeat(auto-fit,minmax(14rem,1fr))] gap-1 overflow-y-auto rounded-lg border border-line p-2">
-            {people.state === 'ok' && !people.data.length ? (
-              <p className="px-2 py-1.5 text-fg-2">{t('taskPeopleEmpty')}</p>
-            ) : people.state === 'ok' ? (
-              people.data.map((p) => (
-                // The real checkbox stays for keyboards and screen readers; the drawn box only animates the tick.
-                <label
-                  key={p.id}
-                  className="group flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors duration-150 ease-enter hover:bg-hover has-checked:bg-selected has-focus-visible:outline-2 has-focus-visible:outline-accent-fg"
-                >
-                  <input
-                    type="checkbox"
-                    checked={picked.has(p.id)}
-                    onChange={() => toggle(p.id)}
-                    className="sr-only"
-                  />
-                  <span
-                    aria-hidden
-                    className="grid size-4.5 shrink-0 place-items-center rounded border border-fg-3 bg-field transition-colors duration-150 ease-enter group-has-checked:border-accent group-has-checked:bg-accent"
-                  >
-                    <Check
-                      strokeWidth={3}
-                      className="size-3 scale-50 text-on-accent opacity-0 transition-[opacity,scale] duration-200 ease-enter group-has-checked:scale-100 group-has-checked:opacity-100"
-                    />
-                  </span>
-                  <span className="truncate">{nameOf(p)}</span>
-                </label>
-              ))
-            ) : people.state === 'error' ? (
-              <Notice tone="bad">{t(people.message)}</Notice>
-            ) : (
-              [0, 1, 2].map((i) => <Skeleton key={i} className="h-7 w-full" />)
-            )}
-          </div>
+        <fieldset className="flex flex-col gap-2 text-sm">
+          <legend className="mb-1.5 flex w-full flex-wrap justify-between gap-2 font-medium text-fg-2">
+            {t('taskPeople')}
+            <span aria-live="polite" className="text-xs font-normal text-fg-3">
+              {picked.size ? t('pickedCount', { n: picked.size }) : t('taskPeopleHint')}
+            </span>
+          </legend>
+          {people.state === 'ok' ? (
+            <PeopleList people={people.data} picked={picked} onChange={setPicked} />
+          ) : people.state === 'error' ? (
+            <Notice tone="bad">{t(people.message)}</Notice>
+          ) : (
+            [0, 1, 2].map((i) => <Skeleton key={i} className="h-9 w-full" />)
+          )}
         </fieldset>
         {error && <Notice tone="bad">{t(error)}</Notice>}
         {done && <Notice tone="ok">{t('taskCreated')}</Notice>}

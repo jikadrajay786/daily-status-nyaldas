@@ -1,3 +1,5 @@
+import { useCommentCounts } from '@daily-status/core/commentService'
+import { Inbox } from 'lucide-react-native'
 import { bumpLive, useLiveQuery } from '@daily-status/core/live'
 import {
   getAllTeamStatuses,
@@ -7,19 +9,29 @@ import {
 import { fmtDate, fmtHours, fmtShort, initials, nameOf } from '@daily-status/core/format'
 import { useT } from '@daily-status/core/i18n'
 import { today } from '@daily-status/core/supabase'
+import { useDayOff } from '@daily-status/core/holidayService'
 import { useDebounced } from '@daily-status/core/useDebounced'
 import { router } from 'expo-router'
 import { useState, type ReactNode } from 'react'
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { FlatList, RefreshControl } from 'react-native'
+import { SafeAreaView as RNSafeAreaView } from 'react-native-safe-area-context'
+import { withUniwind } from 'uniwind'
+import { Box } from '@/components/gs/box'
+import { HStack } from '@/components/gs/hstack'
+import { Pressable } from '@/components/gs/pressable'
+import { Text } from '@/components/gs/text'
+import { VStack } from '@/components/gs/vstack'
 import { DateField } from '@/components/DateField'
 import { MemberPicker } from '@/components/MemberPicker'
+import { Openable } from '@/components/Openable'
 import { CardsSkeleton, StatusCard } from '@/components/StatusCard'
 import {
   Avatar,
   Badge,
   Card,
+  Empty,
   Field,
+  Link,
   Loading,
   Notice,
   Segmented,
@@ -27,8 +39,12 @@ import {
   Stat,
   Title
 } from '@/components/ui'
+import { useTabBarInset } from '@/lib/tabBar'
 import { usePullToRefresh } from '@/lib/refresh'
-import { useTheme } from '@/lib/theme'
+
+const InboxIcon = withUniwind(Inbox)
+
+const SafeAreaView = withUniwind(RNSafeAreaView)
 
 type Tab = 'feed' | 'people'
 type Filters = { date: string; userId: string; search: string }
@@ -38,7 +54,6 @@ const openPerson = (id: string): void => router.push({ pathname: '/team/[id]', p
 // Desktop shows the feed and directory side by side; a phone switches between them, keeping each one's filters.
 export default function Team(): React.JSX.Element {
   const { t } = useT()
-  const { colors } = useTheme()
   const [tab, setTab] = useState<Tab>('feed')
   const [f, setF] = useState<Filters>({ date: today(), userId: '', search: '' })
   const [find, setFind] = useState('')
@@ -54,10 +69,7 @@ export default function Team(): React.JSX.Element {
     />
   )
   return (
-    <SafeAreaView
-      edges={['top', 'left', 'right']}
-      style={[s.fill, { backgroundColor: colors.canvas }]}
-    >
+    <SafeAreaView edges={['top', 'left', 'right']} className="flex-1 bg-canvas">
       {tab === 'feed' ? (
         <Feed f={f} onFilter={(p) => setF((prev) => ({ ...prev, ...p }))} tabs={header} />
       ) : (
@@ -77,7 +89,6 @@ const Feed = ({
   tabs: ReactNode
 }): React.JSX.Element => {
   const { t, locale } = useT()
-  const { colors: c } = useTheme()
   const filters = { ...f, search: useDebounced(f.search) }
   // Metrics need a single day; with "All dates" they fall back to today.
   const day = f.date || today()
@@ -88,6 +99,11 @@ const Feed = ({
   const [feed, , feedRefreshing] = useLiveQuery(`feed:${JSON.stringify(filters)}`, () =>
     getAllTeamStatuses(filters)
   )
+  const { off: dayOff, holiday } = useDayOff(day)
+  // Name and search stay tucked away until wanted, or while one of them is in use.
+  const [more, setMore] = useState(!!(f.userId || f.search))
+  const counts = useCommentCounts('status', feed.state === 'ok' ? feed.data.map((st) => st.id) : [])
+  const inset = useTabBarInset()
   const pull = usePullToRefresh(
     metrics.state === 'loading' || feed.state === 'loading' || metricsRefreshing || feedRefreshing,
     bumpLive
@@ -98,52 +114,41 @@ const Feed = ({
     <FlatList
       data={feed.state === 'ok' ? feed.data : []}
       keyExtractor={(st) => st.id}
-      contentContainerStyle={s.list}
+      contentContainerClassName="gap-3 p-6"
+      contentContainerStyle={{ paddingBottom: inset }}
       keyboardShouldPersistTaps="handled"
       refreshControl={<RefreshControl {...pull} />}
       ListHeaderComponent={
-        <View style={s.header}>
+        <VStack className="mb-1 gap-4">
           <Title sub={t('teamSubtitle', { day: dayLabel })}>{t('navTeam')}</Title>
           {tabs}
           {metrics.state === 'error' && <Notice tone="bad">{t(metrics.message)}</Notice>}
-          <View style={s.stats}>
+          <HStack className="flex-wrap gap-3">
             <Stat
               loading={metrics.state === 'loading'}
               label={t('statSubmitted')}
               value={m ? `${m.submitted}/${m.members.length}` : '–'}
-              sub={t('statSubmittedSub')}
+              compact
             />
             <Stat
               loading={metrics.state === 'loading'}
               label={t('hoursWorked')}
               value={m ? fmtHours(m.hours, t) : '–'}
-              sub={t('statHoursSub')}
+              compact
             />
             <Stat
               loading={metrics.state === 'loading'}
               label={t('statPending')}
               value={m?.missing.length ?? '–'}
               tone={m?.missing.length ? 'warn' : 'idle'}
-              sub={t('statPendingSub')}
+              compact
             />
-          </View>
+          </HStack>
           <Card>
-            <DateField value={f.date} onChange={(date) => onFilter({ date })} clearable />
-            <MemberPicker
-              members={m?.members ?? []}
-              value={f.userId}
-              onChange={(userId) => onFilter({ userId })}
-            />
-            <Field
-              label={t('search')}
-              value={f.search}
-              onChangeText={(search) => onFilter({ search })}
-              placeholder={t('adminSearch')}
-              autoCorrect={false}
-            />
-          </Card>
-          <Card>
-            <Text accessibilityRole="header" style={[s.cardTitle, { color: c.fg2 }]}>
+            <Text
+              accessibilityRole="header"
+              className="text-[13px] font-semibold uppercase tracking-[0.8px] text-fg-2"
+            >
               {t('notSubmittedOn', { day: dayLabel })}
             </Text>
             {!m ? (
@@ -155,24 +160,51 @@ const Feed = ({
                   accessibilityRole="button"
                   accessibilityLabel={t('openHistory', { name: nameOf(p) })}
                   onPress={() => openPerson(p.id)}
-                  style={({ pressed }) => [s.missing, pressed && { backgroundColor: c.selected }]}
+                  className="min-h-[52px] flex-row items-center gap-3 rounded-[10px] px-2 data-[active=true]:bg-selected"
                 >
-                  <View style={[s.pendingDot, { backgroundColor: c.warn }]} />
-                  <View style={s.grow}>
-                    <Text numberOfLines={1} style={[s.name, { color: c.fg }]}>
+                  <Box className="h-2 w-2 rounded-full bg-warn" />
+                  <VStack className="flex-1 gap-0.5">
+                    <Text numberOfLines={1} className="text-[16px] font-medium text-fg">
                       {nameOf(p)}
                     </Text>
-                    <Text numberOfLines={1} style={[s.small, { color: c.fg3 }]}>
+                    <Text numberOfLines={1} className="text-[13px] text-fg-3">
                       {p.email}
                     </Text>
-                  </View>
+                  </VStack>
                 </Pressable>
               ))
             ) : (
-              <Notice tone="ok">{t('everyoneDone')}</Notice>
+              <Notice tone={dayOff ? 'idle' : 'ok'}>
+                {holiday
+                  ? t('teamHoliday', { name: holiday })
+                  : t(dayOff ? 'teamDayOff' : 'everyoneDone')}
+              </Notice>
             )}
           </Card>
-        </View>
+          <VStack className="mt-2 gap-3">
+            <DateField value={f.date} onChange={(date) => onFilter({ date })} clearable />
+            {more ? (
+              <>
+                <MemberPicker
+                  members={m?.members ?? []}
+                  value={f.userId}
+                  onChange={(userId) => onFilter({ userId })}
+                />
+                <Field
+                  label={t('search')}
+                  value={f.search}
+                  onChangeText={(search) => onFilter({ search })}
+                  placeholder={t('adminSearch')}
+                  autoCorrect={false}
+                />
+              </>
+            ) : (
+              <Box className="self-start">
+                <Link onPress={() => setMore(true)}>{t('moreFilters')}</Link>
+              </Box>
+            )}
+          </VStack>
+        </VStack>
       }
       ListEmptyComponent={
         feed.state === 'loading' ? (
@@ -180,10 +212,21 @@ const Feed = ({
         ) : feed.state === 'error' ? (
           <Notice tone="bad">{t(feed.message)}</Notice>
         ) : (
-          <Notice>{t('noFeed')}</Notice>
+          <Empty
+            icon={<InboxIcon colorClassName="accent-accent-fg" size={28} />}
+            title={t('noFeed')}
+            hint={t('noFeedHint')}
+          />
         )
       }
-      renderItem={({ item: st }) => <StatusCard status={st} author={st.profile} />}
+      renderItem={({ item: st }) => (
+        <Openable
+          target={{ kind: 'status', id: st.id }}
+          title={`${nameOf(st.profile)} · ${fmtDate(st.date, locale)}`}
+        >
+          <StatusCard status={st} author={st.profile} comments={counts[st.id]} />
+        </Openable>
+      )}
     />
   )
 }
@@ -198,8 +241,8 @@ const People = ({
   tabs: ReactNode
 }): React.JSX.Element => {
   const { t, locale } = useT()
-  const { colors: c } = useTheme()
   const [dir, , refreshing] = useLiveQuery('directory', getUserDirectoryWithStats)
+  const inset = useTabBarInset()
   const pull = usePullToRefresh(dir.state === 'loading' || refreshing, bumpLive)
   const q = find.trim().toLowerCase()
   // The team list is small and already loaded, so filtering in memory keeps typing instant.
@@ -214,11 +257,12 @@ const People = ({
     <FlatList
       data={people}
       keyExtractor={(p) => p.id}
-      contentContainerStyle={s.list}
+      contentContainerClassName="gap-3 p-6"
+      contentContainerStyle={{ paddingBottom: inset }}
       keyboardShouldPersistTaps="handled"
       refreshControl={<RefreshControl {...pull} />}
       ListHeaderComponent={
-        <View style={s.header}>
+        <VStack className="mb-1 gap-4">
           <Title sub={t('peopleSubtitle')}>{t('navTeam')}</Title>
           {tabs}
           <Field
@@ -229,7 +273,7 @@ const People = ({
             placeholder={t('findPerson')}
             autoCorrect={false}
           />
-        </View>
+        </VStack>
       }
       ListEmptyComponent={
         dir.state === 'loading' ? (
@@ -244,31 +288,28 @@ const People = ({
         <Pressable
           accessibilityRole="button"
           onPress={() => openPerson(p.id)}
-          style={({ pressed }) => [
-            s.person,
-            { backgroundColor: pressed ? c.selected : c.card, borderColor: c.line }
-          ]}
+          className="flex-row items-center gap-3 rounded-[14px] border border-line bg-card p-3.5 data-[active=true]:bg-selected"
         >
           <Avatar text={initials(p)} />
-          <View style={s.grow}>
-            <View style={s.nameRow}>
-              <Text numberOfLines={1} style={[s.name, s.shrink, { color: c.fg }]}>
+          <VStack className="flex-1 gap-0.5">
+            <HStack className="items-center gap-2">
+              <Text numberOfLines={1} className="shrink text-[16px] font-medium text-fg">
                 {nameOf(p)}
               </Text>
               <Badge
                 label={t(p.role === 'admin' ? 'roleAdmin' : 'roleMember')}
                 tone={p.role === 'admin' ? 'warn' : 'idle'}
               />
-            </View>
-            <Text numberOfLines={1} style={[s.small, { color: c.fg3 }]}>
+            </HStack>
+            <Text numberOfLines={1} className="text-[13px] text-fg-3">
               {p.email}
             </Text>
-            <Text style={[s.small, { color: c.fg2 }]}>
+            <Text className="text-[13px] text-fg-2">
               {p.lastDate
                 ? `${t('updatesCount', { n: p.submissions })} · ${t('lastUpdate', { date: fmtShort(p.lastDate, locale) })}`
                 : t('noUpdatesYet')}
             </Text>
-          </View>
+          </VStack>
         </Pressable>
       )}
     />
@@ -278,44 +319,13 @@ const People = ({
 const PeopleSkeleton = ({ count = 5 }: { count?: number }): React.JSX.Element => (
   <Loading>
     {Array.from({ length: count }, (_, i) => (
-      <View key={i} style={s.skelRow}>
+      <HStack key={i} className="items-center gap-3">
         <Skeleton width={40} height={40} />
-        <View style={s.grow}>
+        <VStack className="flex-1 gap-0.5">
           <Skeleton width="60%" />
           <Skeleton width="40%" height={12} />
-        </View>
-      </View>
+        </VStack>
+      </HStack>
     ))}
   </Loading>
 )
-
-const s = StyleSheet.create({
-  fill: { flex: 1 },
-  list: { padding: 24, gap: 12 },
-  header: { gap: 16, marginBottom: 4 },
-  stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  cardTitle: { fontSize: 13, fontWeight: '600', letterSpacing: 0.8, textTransform: 'uppercase' },
-  missing: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    minHeight: 52,
-    borderRadius: 10,
-    paddingHorizontal: 8
-  },
-  pendingDot: { width: 8, height: 8, borderRadius: 4 },
-  grow: { flex: 1, gap: 2 },
-  shrink: { flexShrink: 1 },
-  name: { fontSize: 16, fontWeight: '500' },
-  small: { fontSize: 13 },
-  person: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 14
-  },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  skelRow: { flexDirection: 'row', alignItems: 'center', gap: 12 }
-})

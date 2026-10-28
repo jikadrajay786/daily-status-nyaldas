@@ -3,41 +3,47 @@ import { fmtDate, fmtHours, nameOf } from '@daily-status/core/format'
 import { useT } from '@daily-status/core/i18n'
 import { wasEdited } from '@daily-status/core/statusService'
 import type { ReactNode } from 'react'
-import { StyleSheet, Text, View } from 'react-native'
-import { useTheme } from '@/lib/theme'
+import { Box } from './gs/box'
+import { HStack } from './gs/hstack'
+import { Text } from './gs/text'
+import { CommentCount } from './CommentThread'
 import { RichText } from './RichText'
 import { Badge, Card, Loading, Skeleton } from './ui'
+
+// The date and badges row; the skeleton uses it too so loading cards have the same shape.
+const HEAD = 'flex-wrap items-center justify-between gap-2'
 
 export const StatusCard = ({
   status: st,
   author,
-  actions
+  actions,
+  comments
 }: {
   status: DailyStatus
   // Team feed cards say whose update it is; a person's own cards don't.
   author?: Pick<Profile, 'full_name' | 'email'> | null
   actions?: ReactNode
+  comments?: number
 }): React.JSX.Element => {
   const { t, locale } = useT()
-  const { colors } = useTheme()
   return (
     <Card>
       {author !== undefined && (
-        <View>
-          <Text numberOfLines={1} style={[s.author, { color: colors.fg }]}>
+        <Box>
+          <Text numberOfLines={1} className="text-[15px] font-semibold text-fg">
             {nameOf(author)}
           </Text>
           {author?.email && (
-            <Text numberOfLines={1} style={[s.email, { color: colors.fg3 }]}>
+            <Text numberOfLines={1} className="text-[13px] text-fg-3">
               {author.email}
             </Text>
           )}
-        </View>
+        </Box>
       )}
-      <View style={s.head}>
-        <Text style={[s.date, { color: colors.fg2 }]}>{fmtDate(st.date, locale)}</Text>
+      <HStack className={HEAD}>
+        <Text className="text-[15px] text-fg-2">{fmtDate(st.date, locale)}</Text>
         {wasEdited(st) && (
-          <View
+          <Box
             accessible
             accessibilityLabel={t('editedAt', {
               when: new Date(st.updated_at).toLocaleString(locale, {
@@ -47,12 +53,17 @@ export const StatusCard = ({
             })}
           >
             <Badge label={t('edited')} tone="idle" />
-          </View>
+          </Box>
         )}
         <Badge label={fmtHours(st.hours_logged, t)} tone="info" />
-      </View>
+      </HStack>
       <RichText html={st.description} />
-      {actions && <View style={s.actions}>{actions}</View>}
+      {(actions || !!comments) && (
+        <HStack className="flex-wrap items-center gap-2">
+          <CommentCount n={comments} />
+          <HStack className="ml-auto flex-wrap justify-end gap-2">{actions}</HStack>
+        </HStack>
+      )}
     </Card>
   )
 }
@@ -61,27 +72,13 @@ export const CardsSkeleton = ({ count = 3 }: { count?: number }): React.JSX.Elem
   <Loading>
     {Array.from({ length: count }, (_, i) => (
       <Card key={i}>
-        <View style={s.head}>
+        <HStack className={HEAD}>
           <Skeleton width={140} />
           <Skeleton width={44} height={22} />
-        </View>
+        </HStack>
         <Skeleton width="90%" />
         <Skeleton width="70%" />
       </Card>
     ))}
   </Loading>
 )
-
-const s = StyleSheet.create({
-  head: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8
-  },
-  date: { fontSize: 15 },
-  author: { fontSize: 15, fontWeight: '600' },
-  email: { fontSize: 13 },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8 }
-})

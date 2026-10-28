@@ -1,3 +1,6 @@
+import { today } from '@daily-status/core/supabase'
+import { History, SearchX } from 'lucide-react'
+import { useCommentCounts } from '@daily-status/core/commentService'
 import { useState } from 'react'
 import { useBusy } from '@daily-status/core/useBusy'
 import type { DailyStatus, Profile } from '@daily-status/core/database.types'
@@ -8,7 +11,7 @@ import { useLiveQuery } from '@daily-status/core/live'
 import { errMsg } from '@daily-status/core/useQuery'
 import { CardsSkeleton } from './Skeletons'
 import { StatusCard } from './StatusCard'
-import { Button, Input, Notice, PageHeader } from './ui'
+import { Button, Input, Notice, PageHeader, Empty } from './ui'
 
 type Props = { profile: Profile; onEdit: (date: string) => void }
 
@@ -19,6 +22,7 @@ export const StatusHistory = ({ profile, onEdit }: Props): React.JSX.Element => 
   const [list, reload] = useLiveQuery(`history:${profile.id}:${q}`, () =>
     listMyStatuses(profile.id, q)
   )
+  const counts = useCommentCounts('status', list.state === 'ok' ? list.data.map((s) => s.id) : [])
   const [confirming, setConfirming] = useState<string>()
   const [error, setError] = useState<Key>()
 
@@ -65,6 +69,7 @@ export const StatusHistory = ({ profile, onEdit }: Props): React.JSX.Element => 
             <StatusCard
               key={s.id}
               status={s}
+              comments={counts[s.id]}
               actions={
                 // In-app confirm: window.confirm's OK/Cancel buttons stay in the OS language.
                 !canChange(s.date, profile.role) ? (
@@ -98,7 +103,12 @@ export const StatusHistory = ({ profile, onEdit }: Props): React.JSX.Element => 
           ))}
         </div>
       ) : (
-        <Notice>{q ? t('noMatch', { q }) : t('noHistory')}</Notice>
+        <Empty
+          icon={q ? <SearchX className="size-7" /> : <History className="size-7" />}
+          title={q ? t('noMatch', { q }) : t('noHistory')}
+          hint={t(q ? 'noMatchHint' : 'noHistoryHint')}
+          action={!q && <Button onClick={() => onEdit(today())}>{t('writeToday')}</Button>}
+        />
       )}
     </>
   )

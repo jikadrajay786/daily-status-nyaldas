@@ -2,48 +2,65 @@ import type { Tone } from '@daily-status/core/format'
 import { useT } from '@daily-status/core/i18n'
 import { useEffect, useState, type ReactNode, type Ref } from 'react'
 import {
-  ActivityIndicator,
   Animated,
   KeyboardAvoidingView,
-  Pressable,
   ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
   type ScrollViewInstance,
   type ScrollViewProps,
-  type TextInputProps,
-  type TextInputInstance
+  type TextInputInstance,
+  type TextInputProps
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { Eye, EyeOff } from 'lucide-react-native'
+import { SafeAreaView as RNSafeAreaView } from 'react-native-safe-area-context'
+import { withUniwind } from 'uniwind'
+import { Avatar as GsAvatar } from '@/components/gs/avatar'
+import { Badge as GsBadge, BadgeText } from '@/components/gs/badge'
+import { Box } from '@/components/gs/box'
+import { Button as GsButton, ButtonSpinner, ButtonText } from '@/components/gs/button'
+import { Card as GsCard } from '@/components/gs/card'
+import { Heading } from '@/components/gs/heading'
+import { HStack } from '@/components/gs/hstack'
+import { Input, InputField } from '@/components/gs/input'
+import { Pressable } from '@/components/gs/pressable'
+import { Spinner } from '@/components/gs/spinner'
+import { Text } from '@/components/gs/text'
+import { VStack } from '@/components/gs/vstack'
+import { useTabBarInset } from '@/lib/tabBar'
 import { useAnnounce } from '@/lib/announce'
-import { tint, toneColors, useTheme } from '@/lib/theme'
+import { TONE_BOX, TONE_TEXT } from '@/lib/tones'
+
+const SafeAreaView = withUniwind(RNSafeAreaView)
+const EyeIcon = withUniwind(Eye)
+const EyeOffIcon = withUniwind(EyeOff)
 
 export const Screen = ({
   children,
   center,
   scrollRef,
-  refreshControl
+  refreshControl,
+  underHeader = false
 }: {
   children: ReactNode
   center?: boolean
+  // A stack header already clears the status bar.
+  underHeader?: boolean
   scrollRef?: Ref<ScrollViewInstance>
   refreshControl?: ScrollViewProps['refreshControl']
 }): React.JSX.Element => {
-  const { colors } = useTheme()
+  const inset = useTabBarInset()
   return (
-    // The tab bar already clears the bottom inset.
+    // Bottom is left out: inside the tabs the content pads to clear the floating bar instead.
     <SafeAreaView
-      edges={['top', 'left', 'right']}
-      style={[s.fill, { backgroundColor: colors.canvas }]}
+      edges={underHeader ? ['left', 'right'] : ['top', 'left', 'right']}
+      className="flex-1 bg-canvas"
     >
       {/* Android draws edge to edge, so the window no longer resizes for the keyboard: pad on both platforms. */}
-      <KeyboardAvoidingView style={s.fill} behavior="padding">
+      <KeyboardAvoidingView className="flex-1" behavior="padding">
         <ScrollView
           ref={scrollRef}
           refreshControl={refreshControl}
-          contentContainerStyle={[s.screen, center && s.center]}
+          contentContainerClassName={`grow gap-4 p-6 ${center ? 'w-full max-w-[440px] self-center justify-center' : ''}`}
+          contentContainerStyle={{ paddingBottom: inset || undefined }}
           keyboardShouldPersistTaps="handled"
         >
           {children}
@@ -61,22 +78,23 @@ export const Title = ({
   children: string
   sub?: string
   center?: boolean
-}): React.JSX.Element => {
-  const { colors } = useTheme()
-  return (
-    <View style={s.titleBox}>
-      <Text
-        accessibilityRole="header"
-        style={[s.title, center && s.centerText, { color: colors.fg }]}
-      >
-        {children}
-      </Text>
-      {sub && <Text style={[s.sub, center && s.centerText, { color: colors.fg2 }]}>{sub}</Text>}
-    </View>
-  )
-}
+}): React.JSX.Element => (
+  <VStack className="gap-1">
+    <Heading
+      accessibilityRole="header"
+      className={`text-[22px] font-semibold text-fg ${center ? 'text-center' : ''}`}
+    >
+      {children}
+    </Heading>
+    {sub && <Text className={`text-[15px] text-fg-2 ${center ? 'text-center' : ''}`}>{sub}</Text>}
+  </VStack>
+)
 
-const BUTTON_HEIGHT = 48
+const BUTTON = {
+  primary: ['default', 'accent-on-accent'],
+  ghost: ['ghost', 'accent-fg-2'],
+  danger: ['destructive', 'accent-bad-fg']
+} as const
 
 // `busy` keeps the label (so the button never changes size) and puts a spinner in front of it.
 export const Button = ({
@@ -92,32 +110,22 @@ export const Button = ({
   disabled?: boolean
   busy?: boolean
 }): React.JSX.Element => {
-  const { colors: c } = useTheme()
-  const [bg, pressed, fg, line] = {
-    primary: [c.accent, c.accentPressed, c.onAccent, c.accent],
-    ghost: ['transparent', c.selected, c.fg2, c.line],
-    danger: ['transparent', toneColors(c, 'bad').bg, c.badFg, toneColors(c, 'bad').line]
-  }[variant]
+  const [gsVariant, spinner] = BUTTON[variant]
   return (
-    <Pressable
+    <GsButton
+      variant={gsVariant}
       accessibilityRole="button"
+      // Explicit, or Android announces a busy button only as "busy": RN fills the description from the state.
+      accessibilityLabel={children}
       accessibilityState={{ disabled: !!disabled || busy, busy }}
-      disabled={disabled || busy}
+      isDisabled={disabled || busy}
       onPress={onPress}
-      style={({ pressed: p }) => [
-        s.button,
-        {
-          backgroundColor: p ? pressed : bg,
-          borderColor: line,
-          opacity: disabled && !busy ? 0.4 : busy ? 0.85 : 1
-        }
-      ]}
+      // Busy also blocks presses, but fades less than disabled.
+      className={busy ? 'data-[disabled=true]:opacity-85' : undefined}
     >
-      <View style={s.buttonInner}>
-        {busy && <ActivityIndicator size="small" color={fg} />}
-        <Text style={[s.buttonText, { color: fg }]}>{children}</Text>
-      </View>
-    </Pressable>
+      {busy && <ButtonSpinner size="small" colorClassName={spinner} />}
+      <ButtonText className="text-center">{children}</ButtonText>
+    </GsButton>
   )
 }
 
@@ -126,6 +134,9 @@ export const Field = ({
   hint,
   error,
   hideLabel = false,
+  icon,
+  reveal = false,
+  ref,
   ...props
 }: TextInputProps & {
   label: string
@@ -133,32 +144,57 @@ export const Field = ({
   error?: string
   // Still read by screen readers; for fields whose placeholder says it all, like search.
   hideLabel?: boolean
+  // A decorative icon in front of the text.
+  icon?: ReactNode
+  // A password field with a show/hide button, so people can check what they typed.
+  reveal?: boolean
   ref?: React.Ref<TextInputInstance>
 }): React.JSX.Element => {
-  const { colors: c } = useTheme()
+  const { t } = useT()
+  const [shown, setShown] = useState(false)
   useAnnounce(error)
   return (
-    <View style={s.field}>
-      {!hideLabel && <Text style={[s.label, { color: c.fg2 }]}>{label}</Text>}
-      <TextInput
-        accessibilityLabel={label}
-        accessibilityHint={error ?? hint}
-        placeholderTextColor={c.placeholder}
-        selectionColor={c.accentFg}
-        {...props}
-        style={[
-          s.input,
-          { backgroundColor: c.field, borderColor: error ? c.bad : c.line, color: c.fg }
-        ]}
-      />
+    <VStack className="gap-1.5">
+      {!hideLabel && <Text className="text-[14px] font-medium text-fg-2">{label}</Text>}
+      <Input isInvalid={!!error}>
+        {icon && (
+          <Box accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            {icon}
+          </Box>
+        )}
+        <InputField
+          ref={ref}
+          accessibilityLabel={label}
+          accessibilityHint={error ?? hint}
+          placeholderTextColorClassName="accent-placeholder"
+          selectionColorClassName="accent-accent-fg"
+          {...props}
+          {...(reveal && { secureTextEntry: !shown })}
+          style={undefined}
+        />
+        {reveal && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(shown ? 'hidePassword' : 'showPassword')}
+            onPress={() => setShown(!shown)}
+            className="-mr-2 h-11 w-11 items-center justify-center"
+          >
+            {shown ? (
+              <EyeOffIcon colorClassName="accent-fg-2" size={20} />
+            ) : (
+              <EyeIcon colorClassName="accent-fg-2" size={20} />
+            )}
+          </Pressable>
+        )}
+      </Input>
       {error ? (
-        <Text accessibilityLiveRegion="polite" style={[s.hint, { color: c.badFg }]}>
+        <Text accessibilityLiveRegion="polite" className="text-[13px] text-bad-fg">
           {error}
         </Text>
       ) : (
-        hint && <Text style={[s.hint, { color: c.fg3 }]}>{hint}</Text>
+        hint && <Text className="text-[13px] text-fg-3">{hint}</Text>
       )}
-    </View>
+    </VStack>
   )
 }
 
@@ -170,17 +206,15 @@ export const Notice = ({
   tone?: Tone
   children: string
 }): React.JSX.Element => {
-  const { colors } = useTheme()
-  const t = toneColors(colors, tone)
   useAnnounce(tone === 'bad' || tone === 'ok' ? children : undefined)
   return (
-    <View
+    <Box
       accessibilityRole={tone === 'bad' ? 'alert' : undefined}
       accessibilityLiveRegion={tone === 'bad' ? 'assertive' : tone === 'ok' ? 'polite' : 'none'}
-      style={[s.notice, { backgroundColor: t.bg, borderColor: t.line }]}
+      className={`rounded-[10px] border px-3 py-2.5 ${TONE_BOX[tone]}`}
     >
-      <Text style={[s.noticeText, { color: t.fg }]}>{children}</Text>
-    </View>
+      <Text className={`text-[15px] ${TONE_TEXT[tone]}`}>{children}</Text>
+    </Box>
   )
 }
 
@@ -192,33 +226,36 @@ export const Link = ({
   children: string
   onPress: () => void
   busy?: boolean
-}): React.JSX.Element => {
-  const { colors } = useTheme()
-  return (
-    <Pressable
-      accessibilityRole="link"
-      accessibilityState={{ busy, disabled: busy }}
-      disabled={busy}
-      onPress={onPress}
-      hitSlop={12}
-    >
-      <View style={s.buttonInner}>
-        {busy && <ActivityIndicator size="small" color={colors.accentFg} />}
-        <Text style={[s.link, { color: colors.accentFg }]}>{children}</Text>
-      </View>
-    </Pressable>
-  )
+}): React.JSX.Element => (
+  <Pressable
+    accessibilityRole="link"
+    accessibilityLabel={children}
+    accessibilityState={{ busy, disabled: busy }}
+    disabled={busy}
+    onPress={onPress}
+    hitSlop={12}
+  >
+    <HStack className="items-center justify-center gap-2">
+      {busy && <Spinner size="small" colorClassName="accent-accent-fg" />}
+      <Text className="text-center text-[15px] font-semibold text-accent-fg">{children}</Text>
+    </HStack>
+  </Pressable>
+)
+
+const DOT: Record<Tone, string> = {
+  ok: 'bg-ok-fg',
+  info: 'bg-info-fg',
+  warn: 'bg-warn-fg',
+  bad: 'bg-bad-fg',
+  idle: 'bg-fg-3'
 }
 
-export const Badge = ({ label, tone }: { label: string; tone: Tone }): React.JSX.Element => {
-  const { colors } = useTheme()
-  const t = toneColors(colors, tone)
-  return (
-    <View style={[s.badge, { backgroundColor: t.bg, borderColor: t.line }]}>
-      <Text style={[s.badgeText, { color: t.fg }]}>{label}</Text>
-    </View>
-  )
-}
+export const Badge = ({ label, tone }: { label: string; tone: Tone }): React.JSX.Element => (
+  <GsBadge variant={tone} className="gap-1.5">
+    <Box className={`h-1.5 w-1.5 rounded-full ${DOT[tone]}`} />
+    <BadgeText>{label}</BadgeText>
+  </GsBadge>
+)
 
 // Fades in after 150ms like desktop's .skeleton, so fast loads never flash a placeholder.
 export const Skeleton = ({
@@ -228,7 +265,6 @@ export const Skeleton = ({
   width: number | `${number}%`
   height?: number
 }): React.JSX.Element => {
-  const { colors } = useTheme()
   const [opacity] = useState(() => new Animated.Value(0))
   useEffect(() => {
     const anim = Animated.timing(opacity, {
@@ -241,9 +277,10 @@ export const Skeleton = ({
     return () => anim.stop()
   }, [opacity])
   return (
-    <Animated.View
-      style={{ width, height, borderRadius: 6, backgroundColor: colors.selected, opacity }}
-    />
+    // Animated.View only fades; the bar is a Box so its colour comes from the theme like everything else.
+    <Animated.View style={{ width, opacity }}>
+      <Box className="rounded-md bg-selected" style={{ height }} />
+    </Animated.View>
   )
 }
 
@@ -251,47 +288,40 @@ export const Skeleton = ({
 export const Loading = ({ children }: { children: ReactNode }): React.JSX.Element => {
   const { t } = useT()
   return (
-    <View
+    <VStack
       accessible
       accessibilityLabel={t('loading')}
       accessibilityState={{ busy: true }}
-      style={s.loading}
+      className="gap-2.5"
     >
       {children}
-    </View>
+    </VStack>
   )
 }
 
-export const Card = ({ children }: { children: ReactNode }): React.JSX.Element => {
-  const { colors } = useTheme()
-  return (
-    <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.line }]}>
-      {children}
-    </View>
-  )
-}
+export const Card = ({ children }: { children: ReactNode }): React.JSX.Element => (
+  <GsCard className="gap-3 rounded-[14px] border-line bg-card p-4 shadow-none">{children}</GsCard>
+)
 
+// gluestack's AvatarFallbackText takes charAt(0) of each word, which splits Hindi/Gujarati conjuncts, so the
+// text is plain and callers keep passing core's firstGrapheme initials.
 export const Avatar = ({
   text,
   large = false
 }: {
   text: string
   large?: boolean
-}): React.JSX.Element => {
-  const { colors } = useTheme()
-  const size = large ? 56 : 40
-  return (
-    <View
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      style={[s.avatar, { width: size, height: size, backgroundColor: tint(colors.accent, 0.15) }]}
-    >
-      <Text style={[s.avatarText, { color: colors.accentFg, fontSize: large ? 20 : 15 }]}>
-        {text}
-      </Text>
-    </View>
-  )
-}
+}): React.JSX.Element => (
+  <GsAvatar
+    size={large ? 'lg' : 'md'}
+    accessibilityElementsHidden
+    importantForAccessibility="no-hide-descendants"
+  >
+    <Text className={`font-semibold text-accent-fg ${large ? 'text-[20px]' : 'text-[15px]'}`}>
+      {text}
+    </Text>
+  </GsAvatar>
+)
 
 export const Stat = ({
   label,
@@ -299,7 +329,8 @@ export const Stat = ({
   sub,
   tone = 'idle',
   loading = false,
-  icon
+  icon,
+  compact = false
 }: {
   label: string
   value: string | number
@@ -308,49 +339,55 @@ export const Stat = ({
   loading?: boolean
   // Decorative, so it's hidden from screen readers.
   icon?: ReactNode
-}): React.JSX.Element => {
-  const { colors: c } = useTheme()
-  const color = tone === 'idle' ? c.fg : toneColors(c, tone).fg
-  return (
-    <View style={[s.stat, { backgroundColor: c.card, borderColor: c.line }]}>
-      <Text style={[s.statLabel, { color: c.fg2 }]}>{label}</Text>
-      {loading ? (
-        <Loading>
-          <Skeleton width={56} height={26} />
-        </Loading>
-      ) : (
-        <View style={s.statRow}>
-          {icon && (
-            <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-              {icon}
-            </View>
-          )}
-          <Text style={[s.statValue, { color }]}>{value}</Text>
-        </View>
-      )}
-      {sub && <Text style={[s.statSub, { color: c.fg3 }]}>{sub}</Text>}
-    </View>
-  )
-}
+  // Three to a row on a phone.
+  compact?: boolean
+}): React.JSX.Element => (
+  <VStack
+    className={`grow gap-1 rounded-[14px] border border-line bg-card p-3.5 ${compact ? 'basis-[90px]' : 'basis-[150px]'}`}
+  >
+    <Text className="text-[13px] font-medium text-fg-2">{label}</Text>
+    {loading ? (
+      <Loading>
+        <Skeleton width={56} height={26} />
+      </Loading>
+    ) : (
+      <HStack className="items-center gap-1">
+        {icon && (
+          <Box accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            {icon}
+          </Box>
+        )}
+        <Text
+          className={`text-[24px] font-semibold tabular-nums ${tone === 'idle' ? 'text-fg' : TONE_TEXT[tone]}`}
+        >
+          {value}
+        </Text>
+      </HStack>
+    )}
+    {sub && <Text className="text-[12px] text-fg-3">{sub}</Text>}
+  </VStack>
+)
 
-// A row of mutually exclusive choices (radio semantics), like desktop's pressed-button groups.
+// A row of mutually exclusive choices (radio semantics), like desktop's pressed-button groups. `scroll` keeps
+// many choices on one line that slides sideways instead of wrapping.
 export const Segmented = <V extends string>({
   label,
   options,
   value,
-  onChange
+  onChange,
+  scroll = false
 }: {
   label: string
   options: readonly (readonly [V, string])[]
   value: V
   onChange: (v: V) => void
+  scroll?: boolean
 }): React.JSX.Element => {
-  const { colors: c } = useTheme()
-  return (
-    <View
+  const row = (
+    <HStack
       accessibilityRole="radiogroup"
       accessibilityLabel={label}
-      style={[s.segments, { borderColor: c.line }]}
+      className={`gap-1 rounded-[10px] border border-line p-1 ${scroll ? '' : 'flex-wrap'}`}
     >
       {options.map(([v, text]) => (
         <Pressable
@@ -358,77 +395,55 @@ export const Segmented = <V extends string>({
           accessibilityRole="radio"
           accessibilityState={{ checked: value === v }}
           onPress={() => onChange(v)}
-          style={[s.segment, value === v && { backgroundColor: c.selected }]}
+          className={`min-h-11 justify-center rounded-lg px-3 ${scroll ? '' : 'grow'} ${value === v ? 'bg-selected' : ''}`}
         >
-          <Text style={[s.segmentText, { color: value === v ? c.fg : c.fg2 }]}>{text}</Text>
+          <Text
+            className={`text-center text-[15px] font-medium ${value === v ? 'text-fg' : 'text-fg-2'}`}
+          >
+            {text}
+          </Text>
         </Pressable>
       ))}
-    </View>
+    </HStack>
+  )
+  return scroll ? (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      className="-mx-6"
+      contentContainerClassName="px-6"
+    >
+      {row}
+    </ScrollView>
+  ) : (
+    row
   )
 }
 
-const s = StyleSheet.create({
-  fill: { flex: 1 },
-  screen: { flexGrow: 1, padding: 24, gap: 16 },
-  center: { justifyContent: 'center', maxWidth: 440, width: '100%', alignSelf: 'center' },
-  titleBox: { gap: 4 },
-  title: { fontSize: 22, fontWeight: '600' },
-  sub: { fontSize: 15 },
-  centerText: { textAlign: 'center' },
-  button: {
-    minHeight: BUTTON_HEIGHT,
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingHorizontal: 16,
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
-  buttonText: { fontSize: 16, fontWeight: '600', textAlign: 'center' },
-  buttonInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  field: { gap: 6 },
-  label: { fontSize: 14, fontWeight: '500' },
-  input: {
-    minHeight: BUTTON_HEIGHT,
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    fontSize: 16
-  },
-  hint: { fontSize: 13 },
-  notice: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
-  noticeText: { fontSize: 15 },
-  link: { fontSize: 15, fontWeight: '600', textAlign: 'center' },
-  badge: {
-    alignSelf: 'flex-start',
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 3
-  },
-  badgeText: { fontSize: 13, fontWeight: '500' },
-  loading: { gap: 10 },
-  card: { borderWidth: 1, borderRadius: 14, padding: 16, gap: 12 },
-  avatar: { borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontWeight: '600' },
-  stat: { flexGrow: 1, flexBasis: 150, borderWidth: 1, borderRadius: 14, padding: 14, gap: 4 },
-  statLabel: { fontSize: 13, fontWeight: '500' },
-  statValue: { fontSize: 24, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  statSub: { fontSize: 12 },
-  statRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  segments: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 4,
-    gap: 4
-  },
-  segment: {
-    flexGrow: 1,
-    minHeight: 44,
-    borderRadius: 8,
-    justifyContent: 'center',
-    paddingHorizontal: 12
-  },
-  segmentText: { fontSize: 15, fontWeight: '500', textAlign: 'center' }
-})
+// An empty list: a soft icon, what's missing, and what to do about it.
+export const Empty = ({
+  icon,
+  title,
+  hint,
+  action
+}: {
+  icon: ReactNode
+  title: string
+  hint?: string
+  action?: ReactNode
+}): React.JSX.Element => (
+  <VStack className="items-center gap-2 px-4 py-10">
+    <Box
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      className="mb-2 h-16 w-16 items-center justify-center rounded-full bg-accent/10"
+    >
+      {icon}
+    </Box>
+    <Text accessibilityRole="header" className="text-center text-[17px] font-semibold text-fg">
+      {title}
+    </Text>
+    {hint && <Text className="text-center text-[15px] text-fg-2">{hint}</Text>}
+    {action && <Box className="mt-3">{action}</Box>}
+  </VStack>
+)

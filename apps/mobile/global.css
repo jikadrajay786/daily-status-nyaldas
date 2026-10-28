@@ -1,0 +1,57 @@
+@import 'tailwindcss';
+@import 'uniwind';
+/* The six palettes, generated from packages/core/src/palettes.ts; Uniwind owns which one is active. */
+@import './src/theme.gen.css';
+
+/* The same semantic tokens desktop uses (bg-canvas, text-fg-2, bg-accent, text-on-accent…). */
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-panel: var(--panel);
+  --color-card: var(--card);
+  --color-field: var(--field);
+  --color-line: var(--line);
+  --color-hover: var(--hover);
+  --color-selected: var(--selected);
+  --color-fg: var(--fg);
+  --color-fg-2: var(--fg-2);
+  --color-fg-3: var(--fg-3);
+  --color-placeholder: var(--placeholder);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-on-accent: var(--on-accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-ok: var(--ok);
+  --color-ok-fg: var(--ok-fg);
+  --color-warn: var(--warn);
+  --color-warn-fg: var(--warn-fg);
+  --color-bad: var(--bad);
+  --color-bad-fg: var(--bad-fg);
+  --color-info: var(--info);
+  --color-info-fg: var(--info-fg);
+  --color-rc-red: var(--rc-red);
+  --color-rc-orange: var(--rc-orange);
+  --color-rc-green: var(--rc-green);
+  --color-rc-blue: var(--rc-blue);
+  --color-rc-purple: var(--rc-purple);
+  --color-hl-yellow: var(--hl-yellow);
+  --color-hl-green: var(--hl-green);
+  --color-hl-blue: var(--hl-blue);
+  --color-hl-pink: var(--hl-pink);
+  /* A scrim darkens whatever is behind a sheet in every theme, so it is plain black (desktop's dialog::backdrop). */
+  --color-scrim: rgb(0 0 0 / 0.45);
+
+  /* gluestack templates' names, so components added later pick up our palettes. Its "accent" (a subtle hover
+     background) clashes with ours (the brand colour), so templates using bg-accent must be restyled. */
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--on-accent);
+  --color-background: var(--canvas);
+  --color-foreground: var(--fg);
+  --color-secondary: var(--panel);
+  --color-secondary-foreground: var(--fg);
+  --color-muted: var(--panel);
+  --color-muted-foreground: var(--fg-3);
+  --color-destructive: var(--bad);
+  --color-border: var(--line);
+  --color-input: var(--line);
+  --color-ring: var(--accent-fg);
+}

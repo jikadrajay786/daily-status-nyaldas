@@ -21,7 +21,14 @@ export const useLiveVersion = (): number =>
     () => version
   )
 
-const TABLES = ['daily_statuses', 'profiles', 'tasks', 'task_assignments'] as const
+const TABLES = [
+  'daily_statuses',
+  'profiles',
+  'tasks',
+  'task_assignments',
+  'comments',
+  'holidays'
+] as const
 
 // Mounted once while signed in. Realtime applies each subscriber's RLS, so nobody hears about rows they can't read.
 // Bursts (a bulk edit, several people at once) collapse into one refetch, and a reconnect after the network or the
