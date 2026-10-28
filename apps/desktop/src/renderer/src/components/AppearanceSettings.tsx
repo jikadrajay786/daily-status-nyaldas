@@ -12,15 +12,22 @@ import {
   type Appearance
 } from '../lib/appearance'
 import { useT, type Key } from '@daily-status/core/i18n'
-import { Button, Card, PageHeader } from './ui'
+import { ACCENTS, type Accent } from '@daily-status/core/palettes'
+import { Badge, Button, Card, PageHeader } from './ui'
 
 const THEME_TEXT: Record<Theme, [Key, Key]> = {
   system: ['themeSystem', 'themeSystemHint'],
   light: ['themeLight', 'themeLightHint'],
   dark: ['themeDark', 'themeDarkHint'],
-  midnight: ['themeMidnight', 'themeMidnightHint'],
-  cyberpunk: ['themeCyberpunk', 'themeCyberpunkHint'],
-  sepia: ['themeSepia', 'themeSepiaHint']
+  midnight: ['themeMidnight', 'themeMidnightHint']
+}
+const ACCENT_TEXT: Record<Accent, Key> = {
+  indigo: 'accentIndigo',
+  emerald: 'accentEmerald',
+  blue: 'accentBlue',
+  purple: 'accentPurple',
+  amber: 'accentAmber',
+  cyan: 'accentCyan'
 }
 const FONT_TEXT: Record<Appearance['font'], Key> = {
   sans: 'fontSans',
@@ -116,6 +123,34 @@ const Mini = ({ theme }: { theme: Exclude<Theme, 'system'> }): React.JSX.Element
   </div>
 )
 
+// The real tokens, so it shows exactly what the chosen theme and colour look like.
+const Preview = (): React.JSX.Element => {
+  const { t } = useT()
+  return (
+    <div
+      aria-label={t('preview')}
+      role="img"
+      className="flex flex-col gap-3 rounded-xl border border-line bg-canvas p-4"
+    >
+      <div className="flex flex-col gap-2 rounded-lg border border-line bg-card p-4 shadow-raised">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="font-semibold text-fg">{t('previewTitle')}</span>
+          <Badge label={t('stateDone')} tone="ok" />
+        </div>
+        <p className="text-sm text-fg-2">{t('previewBody')}</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="pointer-events-none">
+          <Button tabIndex={-1}>{t('submit')}</Button>
+        </span>
+        <span className="text-sm text-fg-2">
+          {t('streak')} <b className="text-lg font-semibold text-accent-fg tabular-nums">12</b>
+        </span>
+      </div>
+    </div>
+  )
+}
+
 export const AppearanceSettings = (): React.JSX.Element => {
   const { t } = useT()
   const a = useAppearance()
@@ -163,6 +198,40 @@ export const AppearanceSettings = (): React.JSX.Element => {
                 </Choice>
               )
             })}
+          </div>
+        </Card>
+
+        <Card title={t('accentColour')}>
+          <div className="flex flex-wrap gap-6">
+            <div className="flex min-w-0 flex-[1_1_16rem] flex-col gap-3">
+              <p className="text-sm text-fg-2">{t('accentHint')}</p>
+              <div className="flex flex-wrap gap-2">
+                {ACCENTS.map((accent) => (
+                  <button
+                    key={accent}
+                    type="button"
+                    aria-pressed={a.accent === accent}
+                    onClick={() => setAppearance({ accent })}
+                    className={`flex items-center gap-2 rounded-full border py-1.5 pr-3.5 pl-1.5 text-sm font-medium transition-colors ${
+                      a.accent === accent
+                        ? 'border-accent-fg bg-selected text-fg'
+                        : 'border-line text-fg-2 hover:bg-hover'
+                    }`}
+                  >
+                    <span
+                      data-accent={accent}
+                      className="grid size-6 place-items-center rounded-full bg-accent text-on-accent forced-color-adjust-none"
+                    >
+                      {a.accent === accent && <Check aria-hidden className="size-3.5" />}
+                    </span>
+                    {t(ACCENT_TEXT[accent])}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="min-w-0 flex-[1_1_18rem]">
+              <Preview />
+            </div>
           </div>
         </Card>
 

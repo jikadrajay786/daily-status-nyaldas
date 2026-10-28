@@ -1,7 +1,7 @@
 // Calendar maths on YYYY-MM-DD strings, done in UTC so daylight-saving shifts never skip or repeat a day.
 
-// Monday to Friday. Offices that also work Saturdays add 6 here, and every count follows.
-export const WORKDAYS: ReadonlySet<number> = new Set([1, 2, 3, 4, 5])
+// Monday to Saturday; Sunday is the weekly holiday, so an update then is optional. Every count follows this.
+export const WORKDAYS: ReadonlySet<number> = new Set([1, 2, 3, 4, 5, 6])
 
 const DAY = 86_400_000
 const ms = (d: string): number => Date.parse(`${d}T00:00Z`)
@@ -14,7 +14,12 @@ export const ymd = (d: Date): string =>
 
 export const addDays = (d: string, n: number): string => iso(ms(d) + n * DAY)
 export const weekday = (d: string): number => new Date(ms(d)).getUTCDay()
-export const isWorkday = (d: string): boolean => WORKDAYS.has(weekday(d))
+// Days off besides Sunday (office holidays). Anything with `has` works: a Set of days or a Map of day → name.
+export type DaysOff = { has: (d: string) => boolean }
+const NONE: DaysOff = new Set<string>()
+
+export const isWorkday = (d: string, off: DaysOff = NONE): boolean =>
+  WORKDAYS.has(weekday(d)) && !off.has(d)
 export const daysBetween = (start: string, end: string): string[] =>
   Array.from({ length: Math.max(0, (ms(end) - ms(start)) / DAY + 1) }, (_, i) => addDays(start, i))
 
@@ -47,23 +52,29 @@ export const dayState = (
   d: string,
   done: ReadonlySet<string>,
   joined: string,
-  today: string
+  today: string,
+  off: DaysOff = NONE
 ): DayState =>
   done.has(d)
     ? 'done'
     : d > today || d < joined
       ? 'outside'
-      : !isWorkday(d)
+      : !isWorkday(d, off)
         ? 'off'
         : d === today
           ? 'pending'
           : 'missed'
 
-// Consecutive working days with an update, counting back from today. Weekends neither break nor extend it.
-export const streakOf = (done: ReadonlySet<string>, today: string, limit = 400): number => {
+// Consecutive working days with an update, counting back from today. Days off neither break nor extend it.
+export const streakOf = (
+  done: ReadonlySet<string>,
+  today: string,
+  off: DaysOff = NONE,
+  limit = 400
+): number => {
   let n = 0
   for (let d = today, i = 0; i < limit; d = addDays(d, -1), i++) {
-    if (!isWorkday(d)) continue
+    if (!isWorkday(d, off)) continue
     if (done.has(d)) n++
     else if (d !== today) break
   }

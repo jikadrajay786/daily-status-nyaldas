@@ -4,20 +4,24 @@ import { useT, type Key } from '@daily-status/core/i18n'
 import { db } from '@daily-status/core/supabase'
 import * as Haptics from 'expo-haptics'
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
-import { AppState, StyleSheet, Text, View } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { AppState } from 'react-native'
+import { SafeAreaView as RNSafeAreaView } from 'react-native-safe-area-context'
+import { withUniwind } from 'uniwind'
 import { Button, Link, Notice } from '@/components/ui'
 import { askToUnlock, checkSupport, setLockOn, type LockState } from '@/lib/appLock'
-import { useTheme } from '@/lib/theme'
+import { Box } from './gs/box'
+import { Logo } from './Logo'
+import { Heading } from './gs/heading'
+import { Text } from './gs/text'
+import { VStack } from './gs/vstack'
 
-const Brand = (): React.JSX.Element => {
-  const { colors: c } = useTheme()
-  return (
-    <View style={[s.logo, { backgroundColor: c.accent }]}>
-      <Text style={[s.logoText, { color: c.onAccent }]}>DS</Text>
-    </View>
-  )
-}
+const SafeAreaView = withUniwind(RNSafeAreaView)
+
+const Brand = (): React.JSX.Element => (
+  <Box className="self-center">
+    <Logo size={56} />
+  </Box>
+)
 
 const LockScreen = ({
   userId,
@@ -27,7 +31,6 @@ const LockScreen = ({
   onUnlock: () => void
 }): React.JSX.Element => {
   const { t } = useT()
-  const { colors: c } = useTheme()
   const [method, setMethod] = useState<Key>('methodFaceId')
   const [message, setMessage] = useState<Key | null>(null)
   const [busy, setBusy] = useState(false)
@@ -86,13 +89,18 @@ const LockScreen = ({
   }
 
   return (
-    <SafeAreaView style={[StyleSheet.absoluteFill, s.screen, { backgroundColor: c.canvas }]}>
-      <View style={s.body} accessibilityViewIsModal>
+    <SafeAreaView className="absolute inset-0 items-center justify-center bg-canvas">
+      <VStack className="w-full max-w-[400px] gap-4 p-6" accessibilityViewIsModal>
         <Brand />
-        <Text accessibilityRole="header" style={[s.title, { color: c.fg }]}>
+        <Heading
+          accessibilityRole="header"
+          className="text-center text-[22px] font-semibold text-fg"
+        >
           {t('lockedTitle')}
+        </Heading>
+        <Text className="text-center text-[16px] text-fg-2">
+          {t('lockedSub', { method: t(method) })}
         </Text>
-        <Text style={[s.sub, { color: c.fg2 }]}>{t('lockedSub', { method: t(method) })}</Text>
         {message && <Notice tone="bad">{t(message, { method: t(method) })}</Notice>}
         {message !== 'lockGone' && (
           <Button onPress={() => void tryUnlock()} disabled={busy}>
@@ -102,7 +110,7 @@ const LockScreen = ({
         <Link onPress={usePassword} busy={leaving}>
           {t('usePassword')}
         </Link>
-      </View>
+      </VStack>
     </SafeAreaView>
   )
 }
@@ -118,43 +126,25 @@ export const AppLockGate = ({
   lock: LockState
   children: React.ReactNode
 }): React.JSX.Element => {
-  const { colors: c } = useTheme()
   const hidden = lock.locked || lock.covered
   return (
-    <View style={s.fill}>
-      <View
-        style={s.fill}
+    <Box className="flex-1">
+      <Box
+        className="flex-1"
         importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
         accessibilityElementsHidden={hidden}
       >
         {children}
-      </View>
+      </Box>
       {lock.locked ? (
         <LockScreen userId={userId} onUnlock={lock.unlock} />
       ) : (
         lock.covered && (
-          <View style={[StyleSheet.absoluteFill, s.screen, { backgroundColor: c.canvas }]}>
+          <Box className="absolute inset-0 items-center justify-center bg-canvas">
             <Brand />
-          </View>
+          </Box>
         )
       )}
-    </View>
+    </Box>
   )
 }
-
-const s = StyleSheet.create({
-  fill: { flex: 1 },
-  screen: { justifyContent: 'center', alignItems: 'center' },
-  body: { width: '100%', maxWidth: 400, padding: 24, gap: 16, alignItems: 'stretch' },
-  logo: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center'
-  },
-  logoText: { fontSize: 20, fontWeight: '700' },
-  title: { fontSize: 22, fontWeight: '600', textAlign: 'center' },
-  sub: { fontSize: 16, textAlign: 'center' }
-})

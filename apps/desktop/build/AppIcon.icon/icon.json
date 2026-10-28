@@ -1,0 +1,45 @@
+{
+  "fill": {
+    "automatic-gradient": "srgb:0.30980,0.27451,0.89804,1.00000"
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "tick.svg",
+          "name": "tick",
+          "glass": true,
+          "fill-specializations": [
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "srgb:1.00000,1.00000,1.00000,1.00000"
+              }
+            }
+          ]
+        },
+        {
+          "image-name": "rings.svg",
+          "name": "rings",
+          "glass": true
+        },
+        {
+          "image-name": "page.svg",
+          "name": "page",
+          "glass": true
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.4
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared"
+  }
+}

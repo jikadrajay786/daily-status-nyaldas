@@ -7,7 +7,10 @@ import { getProfile, getStatus, updateStatus } from '@daily-status/core/statusSe
 import { errMsg } from '@daily-status/core/useQuery'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useMemo, useRef, useState, type RefObject } from 'react'
-import { StyleSheet, Text, useWindowDimensions, View, type ScrollViewInstance } from 'react-native'
+import { useWindowDimensions, type ScrollViewInstance } from 'react-native'
+import { Box } from '@/components/gs/box'
+import { HStack } from '@/components/gs/hstack'
+import { Text } from '@/components/gs/text'
 import { HoursField } from '@/components/HoursField'
 import { Button, Loading, Notice, Screen, Skeleton } from '@/components/ui'
 import EditorPage from '@/dom/EditorPage'
@@ -35,7 +38,7 @@ export default function EditStatus(): React.JSX.Element {
   })
 
   return (
-    <Screen scrollRef={scroll}>
+    <Screen underHeader scrollRef={scroll}>
       {data.state === 'loading' ? (
         <Loading>
           <Skeleton width="80%" height={18} />
@@ -78,6 +81,7 @@ const Form = ({
   const editorY = useRef(0)
   const fit = useEditorFit(scroll, () => editorY.current)
   const writeLang = useWriteLang(lang)
+  // The editor runs in a WebView, so it gets the palette as resolved CSS variables rather than classes.
   const vars = useMemo(() => cssVars(colors), [colors])
   const { editor, onChange, flush } = useEditorContent()
   const [hours, setHours] = useState(String(status.hours_logged))
@@ -106,11 +110,11 @@ const Form = ({
 
   return (
     <>
-      <Text accessibilityRole="header" style={[s.title, { color: colors.fg }]}>
+      <Text accessibilityRole="header" className="text-[18px] font-semibold text-fg">
         {title}
       </Text>
-      <Text style={[s.label, { color: colors.fg }]}>{t('whatDidYouDo')}</Text>
-      <View onLayout={(e) => (editorY.current = e.nativeEvent.layout.y)}>
+      <Text className="mt-1 text-[16px] font-semibold text-fg">{t('whatDidYouDo')}</Text>
+      <Box onLayout={(e) => (editorY.current = e.nativeEvent.layout.y)}>
         <EditorPage
           ref={editor}
           docKey={status.id}
@@ -133,7 +137,7 @@ const Form = ({
             style: { height: fit.height }
           }}
         />
-      </View>
+      </Box>
       <HoursField
         value={hours}
         onChange={(h) => {
@@ -144,20 +148,14 @@ const Form = ({
         {...(hoursErr && { error: hoursErr })}
       />
       {save.state === 'error' && <Notice tone="bad">{t(save.message)}</Notice>}
-      <View style={s.actions}>
+      <HStack className="flex-wrap gap-2">
         <Button onPress={submit} busy={save.state === 'saving'}>
           {t('saveChanges')}
         </Button>
         <Button variant="ghost" onPress={() => router.back()} disabled={save.state === 'saving'}>
           {t('cancel')}
         </Button>
-      </View>
+      </HStack>
     </>
   )
 }
-
-const s = StyleSheet.create({
-  title: { fontSize: 18, fontWeight: '600' },
-  label: { fontSize: 16, fontWeight: '600', marginTop: 4 },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }
-})

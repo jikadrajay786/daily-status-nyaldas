@@ -9,6 +9,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "tech.propelius.dailystatus",
+      "icon": "./assets/AppIcon.icon",
       "supportsTablet": true
     },
     "android": {

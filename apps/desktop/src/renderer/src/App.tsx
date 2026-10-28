@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { CalendarPage } from './components/CalendarPage'
+import { DetailsProvider } from './components/Details'
 import { AdminDashboard } from './components/AdminDashboard'
 import { AppearanceSettings } from './components/AppearanceSettings'
 import { AuthScreen } from './components/AuthScreen'
@@ -12,7 +14,7 @@ import { UserSubmission } from './components/UserSubmission'
 import type { Profile } from '@daily-status/core/database.types'
 import { I18nContext, LOCALE, translator, useT, type I18n } from '@daily-status/core/i18n'
 import { initialLang, saveLang } from './lib/lang'
-import { canSee, type View } from './lib/nav'
+import { canSee, home, type View } from './lib/nav'
 import { db, today } from '@daily-status/core/supabase'
 import { supabase } from './lib/supabase'
 import { useAuth } from '@daily-status/core/useAuth'
@@ -26,12 +28,12 @@ const Splash = ({ children }: { children: ReactNode }): React.JSX.Element => (
 )
 
 const Workspace = ({ profile }: { profile: Profile }): React.JSX.Element => {
-  const [view, setView] = useState<View>('today')
+  const [view, setView] = useState<View>(() => home(profile.role))
   useRealtimeSync(profile.id)
   // `edit` opens the date's saved update straight in the form (History and Recent's Edit buttons).
   const [day, setDay] = useState(() => ({ date: today(), edit: false }))
   // Falls back if the role changes mid-session; RLS is what actually hides team data.
-  const active = canSee(view, profile.role) ? view : 'today'
+  const active = canSee(view, profile.role) ? view : home(profile.role)
 
   const page = ((): React.JSX.Element => {
     switch (active) {
@@ -60,6 +62,8 @@ const Workspace = ({ profile }: { profile: Profile }): React.JSX.Element => {
         return <AdminDashboard />
       case 'taskBoard':
         return <TaskBoard />
+      case 'calendar':
+        return <CalendarPage profile={profile} />
       case 'appearance':
         return <AppearanceSettings />
       default:
@@ -68,14 +72,16 @@ const Workspace = ({ profile }: { profile: Profile }): React.JSX.Element => {
   })()
 
   return (
-    <div className="flex h-screen bg-canvas text-fg">
-      <Sidebar view={active} profile={profile} onNavigate={setView} />
-      <main className="flex-1 overflow-y-auto [scrollbar-gutter:stable]">
-        <div key={active} className="mx-auto max-w-5xl animate-fade p-8">
-          {page}
-        </div>
-      </main>
-    </div>
+    <DetailsProvider me={profile}>
+      <div className="flex h-screen bg-canvas text-fg">
+        <Sidebar view={active} profile={profile} onNavigate={setView} />
+        <main className="flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+          <div key={active} className="mx-auto max-w-5xl animate-fade p-8">
+            {page}
+          </div>
+        </main>
+      </div>
+    </DetailsProvider>
   )
 }
 

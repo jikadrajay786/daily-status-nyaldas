@@ -4,6 +4,7 @@ import {
   clampRange,
   daysBetween,
   dayState,
+  isWorkday,
   localDay,
   presetRange,
   streakOf,
@@ -50,8 +51,8 @@ describe('ranges', () => {
 
 describe('day states', () => {
   const done = new Set(['2026-10-16', '2026-10-15', '2026-10-14', '2026-10-10'])
-  it('marks missed, weekend, pending, outside and done days', () => {
-    const states = ['2026-10-12', '2026-10-17', MON, '2026-10-20', '2026-10-01', '2026-10-16'].map(
+  it('marks missed, Sunday, pending, outside and done days', () => {
+    const states = ['2026-10-12', '2026-10-18', MON, '2026-10-20', '2026-10-01', '2026-10-16'].map(
       (d) => dayState(d, done, '2026-10-05', MON)
     )
     expect(states).toEqual(['missed', 'off', 'pending', 'outside', 'outside', 'done'])
@@ -60,15 +61,31 @@ describe('day states', () => {
 
 describe('streaks', () => {
   it('counts working days back from today; today pending does not break it', () => {
-    expect(streakOf(new Set(['2026-10-16', '2026-10-15', '2026-10-14']), MON)).toBe(3)
-    expect(streakOf(new Set([MON, '2026-10-16']), MON)).toBe(2)
+    expect(streakOf(new Set(['2026-10-17', '2026-10-16', '2026-10-15']), MON)).toBe(3)
+    expect(streakOf(new Set([MON, '2026-10-17']), MON)).toBe(2)
   })
-  it('ignores weekends: they neither break nor extend it', () => {
-    expect(streakOf(new Set(['2026-10-17', '2026-10-16']), MON)).toBe(1)
-    expect(streakOf(new Set(['2026-10-10', '2026-10-09', '2026-10-12']), '2026-10-12')).toBe(2)
+  it('ignores Sundays: they neither break nor extend it', () => {
+    expect(streakOf(new Set(['2026-10-18', '2026-10-17']), MON)).toBe(1)
+    expect(streakOf(new Set(['2026-10-17', MON]), MON)).toBe(2)
   })
-  it('stops at a missed working day', () => {
+  it('stops at a missed working day, Saturday included', () => {
+    expect(streakOf(new Set(['2026-10-16']), MON)).toBe(0)
     expect(streakOf(new Set(['2026-10-15']), MON)).toBe(0)
+  })
+})
+
+describe('holidays', () => {
+  // 2026-10-20 (Tuesday) is Dussehra.
+  const off = new Map([['2026-10-20', 'Dussehra']])
+  it('count a holiday like Sunday: off, never missed', () => {
+    expect(isWorkday('2026-10-20', off)).toBe(false)
+    expect(isWorkday('2026-10-21', off)).toBe(true)
+    expect(dayState('2026-10-20', new Set(), '2026-10-01', '2026-10-22', off)).toBe('off')
+  })
+  it('let a streak run across a holiday', () => {
+    const done = new Set(['2026-10-21', '2026-10-19'])
+    expect(streakOf(done, '2026-10-21')).toBe(1)
+    expect(streakOf(done, '2026-10-21', off)).toBe(2)
   })
 })
 

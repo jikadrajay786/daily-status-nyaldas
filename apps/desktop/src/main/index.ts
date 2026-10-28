@@ -40,7 +40,8 @@ function createWindow(): void {
     show: false,
     backgroundColor: canvas(),
     autoHideMenuBar: true,
-    ...(process.platform === 'linux' ? { icon } : {}),
+    // macOS takes the window's icon from the app bundle (or the dock, below).
+    ...(process.platform === 'darwin' ? {} : { icon }),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: true,
@@ -105,6 +106,8 @@ app.on('second-instance', () => {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
+  // A packaged app has its own icon; in dev the dock would show Electron's.
+  if (is.dev) app.dock?.setIcon(icon)
   theme = loadTheme()
   applyTheme()
   // Set app user model id for windows

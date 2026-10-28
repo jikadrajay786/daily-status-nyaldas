@@ -2,11 +2,16 @@ import type { Profile } from '@daily-status/core/database.types'
 import { nameOf } from '@daily-status/core/format'
 import { useT } from '@daily-status/core/i18n'
 import { useState } from 'react'
-import { FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
-import { useTheme } from '@/lib/theme'
+import { FlatList, Modal } from 'react-native'
+import { SafeAreaView as RNSafeAreaView } from 'react-native-safe-area-context'
+import { withUniwind } from 'uniwind'
+import { HStack } from './gs/hstack'
+import { Pressable } from './gs/pressable'
+import { Text } from './gs/text'
+import { VStack } from './gs/vstack'
 import { Field } from './ui'
 
+const SafeAreaView = withUniwind(RNSafeAreaView)
 const ALL = { id: '', full_name: null, email: null } as const
 
 // Desktop's member <select>, as a searchable list: a team can be too long to scroll through.
@@ -20,7 +25,6 @@ export const MemberPicker = ({
   onChange: (id: string) => void
 }): React.JSX.Element => {
   const { t } = useT()
-  const { colors: c } = useTheme()
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const picked = members.find((m) => m.id === value)
@@ -38,29 +42,32 @@ export const MemberPicker = ({
   }
 
   return (
-    <View style={s.field}>
-      <Text style={[s.label, { color: c.fg2 }]}>{t('roleMember')}</Text>
+    <VStack className="gap-1.5">
+      <Text className="text-[14px] font-medium text-fg-2">{t('roleMember')}</Text>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${t('roleMember')}: ${label}`}
         onPress={() => setOpen(true)}
-        style={[s.button, { backgroundColor: c.field, borderColor: c.line }]}
+        className="min-h-12 flex-row items-center gap-2 rounded-[10px] border border-line bg-field px-3"
       >
-        <Text numberOfLines={1} style={[s.value, { color: c.fg }]}>
+        <Text numberOfLines={1} className="flex-1 text-[16px] text-fg">
           {label}
         </Text>
-        <Text style={{ color: c.fg3 }}>▾</Text>
+        <Text className="text-fg-3">▾</Text>
       </Pressable>
       <Modal visible={open} animationType="slide" onRequestClose={close}>
-        <SafeAreaView accessibilityViewIsModal style={[s.sheet, { backgroundColor: c.canvas }]}>
-          <View style={s.top}>
-            <Text accessibilityRole="header" style={[s.title, { color: c.fg }]}>
+        <SafeAreaView accessibilityViewIsModal className="flex-1 gap-3 bg-canvas p-4">
+          <HStack className="items-center justify-between">
+            <Text accessibilityRole="header" className="text-[20px] font-semibold text-fg">
               {t('roleMember')}
             </Text>
             <Pressable accessibilityRole="button" onPress={close} hitSlop={12}>
-              <Text style={[s.close, { color: c.accentFg }]}>{t('close')}</Text>
+              {/* Bold on Android: a content-sized weight-600 label there loses its last letter. */}
+              <Text className="text-[16px] font-semibold text-accent-fg android:font-bold">
+                {t('close')}
+              </Text>
             </Pressable>
-          </View>
+          </HStack>
           <Field
             label={t('findPerson')}
             hideLabel
@@ -81,43 +88,15 @@ export const MemberPicker = ({
                   onChange(m.id)
                   close()
                 }}
-                style={[s.row, m.id === value && { backgroundColor: c.selected }]}
+                className={`min-h-[52px] justify-center rounded-[10px] px-3 py-2 ${m.id === value ? 'bg-selected' : ''}`}
               >
-                <Text style={[s.name, { color: c.fg }]}>{m.id ? nameOf(m) : t('allMembers')}</Text>
-                {m.email && <Text style={[s.email, { color: c.fg3 }]}>{m.email}</Text>}
+                <Text className="text-[16px] text-fg">{m.id ? nameOf(m) : t('allMembers')}</Text>
+                {m.email && <Text className="text-[13px] text-fg-3">{m.email}</Text>}
               </Pressable>
             )}
           />
         </SafeAreaView>
       </Modal>
-    </View>
+    </VStack>
   )
 }
-
-const s = StyleSheet.create({
-  field: { gap: 6 },
-  label: { fontSize: 14, fontWeight: '500' },
-  button: {
-    minHeight: 48,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8
-  },
-  value: { flex: 1, fontSize: 16 },
-  sheet: { flex: 1, padding: 16, gap: 12 },
-  top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 20, fontWeight: '600' },
-  close: { fontSize: 16, fontWeight: '600' },
-  row: {
-    minHeight: 52,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    justifyContent: 'center'
-  },
-  name: { fontSize: 16 },
-  email: { fontSize: 13 }
-})

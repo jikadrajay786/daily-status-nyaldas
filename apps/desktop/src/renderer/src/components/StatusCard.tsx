@@ -3,16 +3,26 @@ import type { DailyStatus, Profile } from '@daily-status/core/database.types'
 import { fmtDate, fmtHours, nameOf } from '@daily-status/core/format'
 import { useT } from '@daily-status/core/i18n'
 import { wasEdited } from '@daily-status/core/statusService'
+import { CommentsButton } from './CommentsButton'
 import { RichText } from './Editor/RichText'
 import { Badge } from './ui'
 
 type Props = {
   status: DailyStatus
-  author?: Pick<Profile, 'full_name' | 'email'> | null
+  author?: Pick<Profile, 'full_name' | 'email'> | null | undefined
   actions?: ReactNode
+  // Off inside the details dialog, which already shows the thread.
+  commentable?: boolean
+  comments?: number | undefined
 }
 
-export const StatusCard = ({ status: s, author, actions }: Props): React.JSX.Element => {
+export const StatusCard = ({
+  status: s,
+  author,
+  actions,
+  commentable = true,
+  comments
+}: Props): React.JSX.Element => {
   const { t, locale } = useT()
   return (
     <article className="rounded-xl border border-line bg-card p-4">
@@ -41,7 +51,16 @@ export const StatusCard = ({ status: s, author, actions }: Props): React.JSX.Ele
         <Badge label={fmtHours(s.hours_logged, t)} tone="info" />
       </header>
       <RichText html={s.description} />
-      {actions && <footer className="mt-3 flex justify-end gap-2">{actions}</footer>}
+      {(actions || commentable) && (
+        <footer className="mt-3 flex flex-wrap items-center justify-end gap-2">
+          {commentable && (
+            <span className="mr-auto">
+              <CommentsButton target={{ kind: 'status', id: s.id }} count={comments} />
+            </span>
+          )}
+          {actions}
+        </footer>
+      )}
     </article>
   )
 }

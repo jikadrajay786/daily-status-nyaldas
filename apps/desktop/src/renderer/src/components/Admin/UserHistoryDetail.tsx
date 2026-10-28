@@ -1,3 +1,5 @@
+import { CalendarX, SearchX } from 'lucide-react'
+import { useCommentCounts } from '@daily-status/core/commentService'
 import { Flame } from 'lucide-react'
 import { useBusy } from '@daily-status/core/useBusy'
 import { useId, useState } from 'react'
@@ -24,7 +26,7 @@ import {
 } from '@daily-status/core/workdays'
 import { CalendarSkeleton, CardsSkeleton } from '../Skeletons'
 import { StatusCard } from '../StatusCard'
-import { Avatar, Badge, Button, Card, Field, Input, Notice, Skeleton, Stat } from '../ui'
+import { Avatar, Badge, Button, Card, Field, Input, Notice, Skeleton, Stat, Empty } from '../ui'
 import { StatusEditForm } from './StatusEditForm'
 import { SubmissionCalendar } from './SubmissionCalendar'
 
@@ -51,6 +53,10 @@ export const UserHistoryDetail = ({ person, version, onChanged }: Props): React.
   )
   const [history] = useLiveQuery(`uhistory:${key}:${q}`, () =>
     getIndividualUserHistory(person.id, range.start, range.end, q)
+  )
+  const counts = useCommentCounts(
+    'status',
+    history.state === 'ok' ? history.data.map((s) => s.id) : []
   )
   const [streak] = useLiveQuery(`streak:${person.id}:${version}`, () => getUserStreak(person.id))
   const [editing, setEditing] = useState<string>()
@@ -218,7 +224,7 @@ export const UserHistoryDetail = ({ person, version, onChanged }: Props): React.
 
       {(m || metrics.state === 'loading') && (
         <Card title={t('calendar')} className="mb-6">
-          {m ? <SubmissionCalendar days={m.days} /> : <CalendarSkeleton />}
+          {m ? <SubmissionCalendar days={m.days} holidays={m.holidays} /> : <CalendarSkeleton />}
         </Card>
       )}
 
@@ -255,6 +261,7 @@ export const UserHistoryDetail = ({ person, version, onChanged }: Props): React.
               ) : (
                 <StatusCard
                   status={s}
+                  comments={counts[s.id]}
                   actions={
                     // In-app confirm: window.confirm's OK/Cancel buttons stay in the OS language.
                     confirming === s.id ? (
@@ -286,7 +293,11 @@ export const UserHistoryDetail = ({ person, version, onChanged }: Props): React.
           ))}
         </ol>
       ) : (
-        <Notice>{q ? t('noMatch', { q }) : t('noUpdatesInPeriod')}</Notice>
+        <Empty
+          icon={q ? <SearchX className="size-7" /> : <CalendarX className="size-7" />}
+          title={q ? t('noMatch', { q }) : t('noUpdatesInPeriod')}
+          hint={t(q ? 'noMatchHint' : 'noUpdatesInPeriodHint')}
+        />
       )}
     </>
   )

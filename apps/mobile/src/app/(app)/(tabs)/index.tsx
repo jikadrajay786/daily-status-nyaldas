@@ -10,17 +10,15 @@ import {
   saveStatus
 } from '@daily-status/core/statusService'
 import { today } from '@daily-status/core/supabase'
+import { useDayOff } from '@daily-status/core/holidayService'
 import { errMsg } from '@daily-status/core/useQuery'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import {
-  RefreshControl,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-  type ScrollViewInstance
-} from 'react-native'
+import { RefreshControl, useWindowDimensions, type ScrollViewInstance } from 'react-native'
+import { Box } from '@/components/gs/box'
+import { HStack } from '@/components/gs/hstack'
+import { Text } from '@/components/gs/text'
+import { VStack } from '@/components/gs/vstack'
 import { HoursField } from '@/components/HoursField'
 import { DateField } from '@/components/DateField'
 import { CardsSkeleton, StatusCard } from '@/components/StatusCard'
@@ -101,6 +99,7 @@ export default function Today(): React.JSX.Element {
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => () => clearTimeout(timer.current), [])
   const savedHours = String(form?.row?.hours_logged ?? 8)
+  const { off: dayOff, holiday } = useDayOff(date)
   const locked = !!form?.row && !canChange(date, profile.role)
   // Once submitted the form closes and empties; Edit reopens it filled with what was saved. An unsaved draft
   // means someone was mid-edit when they left, so the form stays open with their words.
@@ -124,6 +123,7 @@ export default function Today(): React.JSX.Element {
   const formY = useRef(0)
   const editorY = useRef(0)
   const fit = useEditorFit(scroll, () => formY.current + editorY.current)
+  // The editor runs in a WebView, so it gets the palette as resolved CSS variables rather than classes.
   const vars = useMemo(() => cssVars(colors), [colors])
 
   const submit = async (): Promise<void> => {
@@ -168,8 +168,11 @@ export default function Today(): React.JSX.Element {
   return (
     <Screen scrollRef={scroll} refreshControl={<RefreshControl {...pull} />}>
       <Title>{t('navToday')}</Title>
-      <View onLayout={(e) => (formY.current = e.nativeEvent.layout.y)} style={s.form}>
+      <VStack onLayout={(e) => (formY.current = e.nativeEvent.layout.y)} className="gap-3.5">
         <DateField value={date} onChange={setDate} hideLabel />
+        {form && !form.row && dayOff && (
+          <Notice>{holiday ? t('holidayToday', { name: holiday }) : t('dayOff')}</Notice>
+        )}
         {row.state === 'error' ? (
           <Notice tone="bad">{t(row.message)}</Notice>
         ) : !form ? (
@@ -199,13 +202,13 @@ export default function Today(): React.JSX.Element {
             )}
             {/* Locked dates collapse the form instead of removing it: unmounting (or display:none, which Fabric
                 also detaches) tears down the editor's WebView while its calls are in flight. */}
-            <View
-              style={[s.form, closed && s.collapsed]}
+            <VStack
+              className={`gap-3.5 ${closed ? 'h-0 overflow-hidden opacity-0' : ''}`}
               pointerEvents={closed ? 'none' : 'auto'}
               accessibilityElementsHidden={closed}
               importantForAccessibility={closed ? 'no-hide-descendants' : 'auto'}
             >
-              <View style={s.badges}>
+              <HStack className="flex-wrap items-center gap-2">
                 <Badge
                   label={
                     form.row
@@ -225,11 +228,11 @@ export default function Today(): React.JSX.Element {
                     <Link onPress={discard}>{t('startOver')}</Link>
                   </>
                 )}
-              </View>
-              <Text accessibilityRole="header" style={[s.label, { color: colors.fg }]}>
+              </HStack>
+              <Text accessibilityRole="header" className="mt-1 text-[16px] font-semibold text-fg">
                 {t('whatDidYouDo')}
               </Text>
-              <View onLayout={(e) => (editorY.current = e.nativeEvent.layout.y)}>
+              <Box onLayout={(e) => (editorY.current = e.nativeEvent.layout.y)}>
                 <EditorPage
                   ref={editor}
                   docKey={form.key}
@@ -252,7 +255,7 @@ export default function Today(): React.JSX.Element {
                     style: { height: fit.height }
                   }}
                 />
-              </View>
+              </Box>
               <HoursField
                 value={form.hours}
                 onChange={setHours}
@@ -269,18 +272,20 @@ export default function Today(): React.JSX.Element {
                   {t('cancel')}
                 </Button>
               )}
-            </View>
+            </VStack>
           </>
         )}
         {/* Covers the form while another date loads, so the editor's WebView stays mounted underneath. */}
         {form && row.state === 'loading' && (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.canvas }]}>
+          <Box className="absolute inset-0 bg-canvas">
             <FormSkeleton />
-          </View>
+          </Box>
         )}
-      </View>
+      </VStack>
 
-      <Text style={[s.section, { color: colors.fg2 }]}>{t('recentUpdates')}</Text>
+      <Text className="mt-4 text-[13px] font-semibold uppercase tracking-[0.8px] text-fg-2">
+        {t('recentUpdates')}
+      </Text>
       {recent.state === 'loading' ? (
         <CardsSkeleton count={2} />
       ) : recent.state === 'error' ? (
@@ -317,17 +322,3 @@ const FormSkeleton = (): React.JSX.Element => (
     <Skeleton width="100%" height={48} />
   </Loading>
 )
-
-const s = StyleSheet.create({
-  form: { gap: 14 },
-  collapsed: { height: 0, overflow: 'hidden', opacity: 0 },
-  badges: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
-  label: { fontSize: 16, fontWeight: '600', marginTop: 4 },
-  section: {
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    marginTop: 16
-  }
-})

@@ -1,9 +1,16 @@
 import { useT } from '@daily-status/core/i18n'
-import { Minus, Plus, type LucideIcon } from 'lucide-react-native'
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Minus, Plus } from 'lucide-react-native'
+import { TextInput } from 'react-native'
+import { withUniwind } from 'uniwind'
 import { useAnnounce } from '@/lib/announce'
 import { parseHours } from '@/lib/hours'
-import { useTheme } from '@/lib/theme'
+import { HStack } from './gs/hstack'
+import { Pressable } from './gs/pressable'
+import { Text } from './gs/text'
+import { VStack } from './gs/vstack'
+
+const MinusIcon = withUniwind(Minus)
+const PlusIcon = withUniwind(Plus)
 
 type Props = { value: string; onChange: (h: string) => void; error?: string; onFocus?: () => void }
 
@@ -18,11 +25,10 @@ const step = (raw: string, dir: 1 | -1): string => {
 
 export const HoursField = ({ value, onChange, error, onFocus }: Props): React.JSX.Element => {
   const { t } = useT()
-  const { colors: c } = useTheme()
   useAnnounce(error)
   const n = parseHours(value)
   const btn = (
-    Icon: LucideIcon,
+    Icon: typeof MinusIcon,
     label: string,
     dir: 1 | -1,
     disabled: boolean
@@ -33,21 +39,17 @@ export const HoursField = ({ value, onChange, error, onFocus }: Props): React.JS
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={() => onChange(step(value, dir))}
-      style={({ pressed }) => [
-        s.step,
-        { borderColor: c.line, backgroundColor: pressed ? c.selected : c.field },
-        disabled && s.dim
-      ]}
+      className={`h-12 w-12 items-center justify-center rounded-[10px] border border-line bg-field data-[active=true]:bg-selected ${disabled ? 'opacity-40' : ''}`}
     >
-      <Icon size={20} color={c.fg} />
+      <Icon size={20} colorClassName="accent-fg" />
     </Pressable>
   )
 
   return (
-    <View style={s.field}>
-      <View style={s.row}>
-        <Text style={[s.label, { color: c.fg }]}>{t('hoursWorked')}</Text>
-        {btn(Minus, t('hoursLess'), -1, n <= 0)}
+    <VStack className="gap-1.5">
+      <HStack className="flex-wrap items-center gap-2">
+        <Text className="grow text-[16px] font-medium text-fg">{t('hoursWorked')}</Text>
+        {btn(MinusIcon, t('hoursLess'), -1, n <= 0)}
         <TextInput
           accessibilityLabel={t('hoursWorked')}
           {...(error && { accessibilityHint: error })}
@@ -56,44 +58,16 @@ export const HoursField = ({ value, onChange, error, onFocus }: Props): React.JS
           {...(onFocus && { onFocus })}
           keyboardType="decimal-pad"
           selectTextOnFocus
-          selectionColor={c.accentFg}
-          style={[
-            s.input,
-            { backgroundColor: c.field, borderColor: error ? c.bad : c.line, color: c.fg }
-          ]}
+          selectionColorClassName="accent-accent-fg"
+          className={`min-h-12 w-[72px] rounded-[10px] border bg-field text-center text-[18px] font-semibold text-fg ${error ? 'border-bad' : 'border-line'}`}
         />
-        {btn(Plus, t('hoursMore'), 1, n >= 24)}
-      </View>
+        {btn(PlusIcon, t('hoursMore'), 1, n >= 24)}
+      </HStack>
       {error && (
-        <Text accessibilityLiveRegion="polite" style={[s.error, { color: c.badFg }]}>
+        <Text accessibilityLiveRegion="polite" className="text-[13px] text-bad-fg">
           {error}
         </Text>
       )}
-    </View>
+    </VStack>
   )
 }
-
-const s = StyleSheet.create({
-  field: { gap: 6 },
-  row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
-  label: { flexGrow: 1, fontSize: 16, fontWeight: '500' },
-  step: {
-    width: 48,
-    height: 48,
-    borderRadius: 10,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  dim: { opacity: 0.4 },
-  input: {
-    width: 72,
-    minHeight: 48,
-    borderRadius: 10,
-    borderWidth: 1,
-    fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center'
-  },
-  error: { fontSize: 13 }
-})

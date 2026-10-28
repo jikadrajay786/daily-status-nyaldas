@@ -27,6 +27,8 @@ nsis:
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
 mac:
+  # Liquid Glass icon for macOS 26+ (dark, clear and tinted looks); older macOS falls back to build/icon.icns.
+  icon: build/AppIcon.icon
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.

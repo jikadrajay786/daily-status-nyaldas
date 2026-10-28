@@ -26,7 +26,11 @@ const CODES: Partial<Record<string, Key>> = {
   task_title: 'errTaskTitle',
   task_description: 'errLength',
   task_dueDate: 'errTaskDue',
-  task_userIds: 'errTaskPeople'
+  task_userIds: 'errTaskPeople',
+  comment_body: 'errCommentBody',
+  holiday_day: 'errHolidayDay',
+  holiday_name: 'errHolidayName',
+  holiday_exists: 'errHolidayExists'
 }
 
 const FRIENDLY: readonly [RegExp, Key][] = [

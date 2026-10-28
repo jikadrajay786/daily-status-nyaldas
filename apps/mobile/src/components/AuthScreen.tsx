@@ -1,11 +1,18 @@
 import { useT, type Key } from '@daily-status/core/i18n'
 import { db } from '@daily-status/core/supabase'
 import { errMsg } from '@daily-status/core/useQuery'
+import { Lock, Mail, User } from 'lucide-react-native'
 import { useRef, useState } from 'react'
-import { StyleSheet, Text, View, type TextInputInstance } from 'react-native'
-import { useTheme } from '@/lib/theme'
-import { Button, Field, Link, Notice, Screen, Title } from './ui'
+import { type TextInputInstance } from 'react-native'
+import { withUniwind } from 'uniwind'
+import { VStack } from './gs/vstack'
+import { Logo } from './Logo'
+import { Button, Card, Field, Notice, Screen, Segmented, Title } from './ui'
 import { VerifyEmail } from './VerifyEmail'
+
+const LockIcon = withUniwind(Lock)
+const MailIcon = withUniwind(Mail)
+const UserIcon = withUniwind(User)
 
 type Mode = 'sign-in' | 'sign-up'
 type FieldName = 'fullName' | 'email' | 'password'
@@ -18,7 +25,6 @@ type Phase =
 
 export const AuthScreen = (): React.JSX.Element => {
   const { t } = useT()
-  const { colors } = useTheme()
   const [mode, setMode] = useState<Mode>('sign-in')
   const [phase, setPhase] = useState<Phase>({ state: 'idle' })
   const [form, setForm] = useState({ fullName: '', email: '', password: '' })
@@ -85,14 +91,12 @@ export const AuthScreen = (): React.JSX.Element => {
 
   return (
     <Screen center>
-      <View style={s.brand}>
-        <View style={[s.logo, { backgroundColor: colors.accent }]}>
-          <Text style={[s.logoText, { color: colors.onAccent }]}>DS</Text>
-        </View>
+      <VStack className="mb-2 items-center gap-4">
+        <Logo />
         <Title center sub={t(mode === 'sign-in' ? 'signInTagline' : 'signUpTagline')}>
           Daily Status
         </Title>
-      </View>
+      </VStack>
 
       {phase.state === 'verify' ? (
         <VerifyEmail
@@ -103,74 +107,74 @@ export const AuthScreen = (): React.JSX.Element => {
         />
       ) : (
         <>
-          {mode === 'sign-up' && (
-            <Field
-              label={t('fullName')}
-              ref={nameRef}
-              value={form.fullName}
-              {...errorFor('fullName')}
-              onChangeText={set('fullName')}
-              autoComplete="name"
-              textContentType="name"
-              placeholder={t('namePlaceholder')}
-              returnKeyType="next"
-              submitBehavior="submit"
-              onSubmitEditing={() => emailRef.current?.focus()}
-            />
-          )}
-          <Field
-            ref={emailRef}
-            label={t('email')}
-            value={form.email}
-            {...errorFor('email')}
-            onChangeText={set('email')}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoComplete="email"
-            textContentType="username"
-            placeholder="you@company.com"
-            returnKeyType="next"
-            submitBehavior="submit"
-            onSubmitEditing={() => passwordRef.current?.focus()}
+          <Segmented
+            label={t('signIn')}
+            value={mode}
+            onChange={switchTo}
+            options={[
+              ['sign-in', t('signIn')],
+              ['sign-up', t('createAccount')]
+            ]}
           />
-          <Field
-            ref={passwordRef}
-            label={t('password')}
-            {...(mode === 'sign-up' && { hint: t('passwordHint') })}
-            value={form.password}
-            {...errorFor('password')}
-            onChangeText={set('password')}
-            secureTextEntry
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
-            textContentType={mode === 'sign-in' ? 'password' : 'newPassword'}
-            returnKeyType="go"
-            onSubmitEditing={submit}
-          />
-          {phase.state === 'error' && <Notice tone="bad">{t(phase.message)}</Notice>}
-          <Button onPress={submit} busy={phase.state === 'busy'}>
-            {t(mode === 'sign-in' ? 'signIn' : 'createAccount')}
-          </Button>
-          <View style={s.switch}>
-            <Text style={[s.switchText, { color: colors.fg2 }]}>
-              {t(mode === 'sign-in' ? 'newHere' : 'haveAccount')}
-            </Text>
-            <Link onPress={() => switchTo(mode === 'sign-in' ? 'sign-up' : 'sign-in')}>
-              {t(mode === 'sign-in' ? 'createAnAccount' : 'signIn')}
-            </Link>
-          </View>
+          <Card>
+            <VStack className="gap-4">
+              {mode === 'sign-up' && (
+                <Field
+                  label={t('fullName')}
+                  ref={nameRef}
+                  icon={<UserIcon colorClassName="accent-fg-3" size={20} />}
+                  value={form.fullName}
+                  {...errorFor('fullName')}
+                  onChangeText={set('fullName')}
+                  autoComplete="name"
+                  textContentType="name"
+                  placeholder={t('namePlaceholder')}
+                  returnKeyType="next"
+                  submitBehavior="submit"
+                  onSubmitEditing={() => emailRef.current?.focus()}
+                />
+              )}
+              <Field
+                ref={emailRef}
+                label={t('email')}
+                icon={<MailIcon colorClassName="accent-fg-3" size={20} />}
+                value={form.email}
+                {...errorFor('email')}
+                onChangeText={set('email')}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="email"
+                textContentType="username"
+                placeholder="you@company.com"
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => passwordRef.current?.focus()}
+              />
+              <Field
+                ref={passwordRef}
+                label={t('password')}
+                icon={<LockIcon colorClassName="accent-fg-3" size={20} />}
+                reveal
+                {...(mode === 'sign-up' && { hint: t('passwordHint') })}
+                value={form.password}
+                {...errorFor('password')}
+                onChangeText={set('password')}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
+                textContentType={mode === 'sign-in' ? 'password' : 'newPassword'}
+                returnKeyType="go"
+                onSubmitEditing={submit}
+              />
+              {phase.state === 'error' && <Notice tone="bad">{t(phase.message)}</Notice>}
+              <Button onPress={submit} busy={phase.state === 'busy'}>
+                {t(mode === 'sign-in' ? 'signIn' : 'createAccount')}
+              </Button>
+            </VStack>
+          </Card>
         </>
       )}
     </Screen>
   )
 }
-
-const s = StyleSheet.create({
-  brand: { alignItems: 'center', gap: 16, marginBottom: 16 },
-  logo: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  logoText: { fontSize: 18, fontWeight: '700' },
-  switch: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6 },
-  switchText: { fontSize: 15 }
-})

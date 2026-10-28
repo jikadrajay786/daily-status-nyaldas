@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { ACCENTS, type Accent } from '@daily-status/core/palettes'
 import { THEMES, type Theme } from '../../../shared/appearance'
 
 export const FONTS = ['sans', 'serif', 'mono', 'dyslexic'] as const
@@ -8,6 +9,7 @@ export const CONTRASTS = ['system', 'normal', 'more'] as const
 
 export type Appearance = {
   theme: Theme
+  accent: Accent
   font: (typeof FONTS)[number]
   size: (typeof SIZES)[number]
   density: (typeof DENSITIES)[number]
@@ -16,6 +18,7 @@ export type Appearance = {
 
 const OPTIONS: { [K in keyof Appearance]: readonly Appearance[K][] } = {
   theme: THEMES,
+  accent: ACCENTS,
   font: FONTS,
   size: SIZES,
   density: DENSITIES,
@@ -25,6 +28,7 @@ const OPTIONS: { [K in keyof Appearance]: readonly Appearance[K][] } = {
 // Keep in sync with the data-* defaults on <html> in index.html.
 export const DEFAULTS: Appearance = {
   theme: 'system',
+  accent: 'indigo',
   font: 'sans',
   size: 'md',
   density: 'comfortable',
@@ -43,6 +47,7 @@ const load = (): Appearance => {
     const saved = new Map(typeof raw === 'object' && raw ? Object.entries(raw) : [])
     return {
       theme: pick('theme', saved.get('theme')),
+      accent: pick('accent', saved.get('accent')),
       font: pick('font', saved.get('font')),
       size: pick('size', saved.get('size')),
       density: pick('density', saved.get('density')),

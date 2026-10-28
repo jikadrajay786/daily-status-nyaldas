@@ -1,3 +1,4 @@
+import '../../global.css'
 import { supabase } from '@/lib/supabase'
 // Registers its sign-in listener before anyone can sign in (see freshSignIn).
 import '@/lib/appLock'
@@ -9,14 +10,46 @@ import * as SplashScreen from 'expo-splash-screen'
 import { StatusBar } from 'expo-status-bar'
 import * as SystemUI from 'expo-system-ui'
 import { useEffect, useMemo, useState } from 'react'
-import { LogBox, useColorScheme } from 'react-native'
+import { LogBox } from 'react-native'
+import { Uniwind, useUniwind } from 'uniwind'
+import { GluestackUIProvider } from '@/components/gs/gluestack-ui-provider'
 import { Button, Notice, Screen } from '@/components/ui'
 import { initialLang, saveLang } from '@/lib/lang'
 import { ProfileContext } from '@/lib/profile'
 import { prefs } from '@/lib/storage'
-import { isTheme, PALETTES, ThemeContext, type Theme, type ThemeCtx } from '@/lib/theme'
+import {
+  accentVars,
+  isAccent,
+  isTheme,
+  PALETTES,
+  ThemeContext,
+  withAccent,
+  type Accent,
+  type Palette,
+  type Theme,
+  type ThemeCtx
+} from '@/lib/theme'
 
 void SplashScreen.preventAutoHideAsync()
+
+const savedTheme = (): Theme => {
+  const saved = prefs.get('theme')
+  return isTheme(saved) ? saved : 'system'
+}
+// Uniwind owns the active theme ("system" follows the phone) and sets React Native's colour scheme to match, so
+// nothing else may: the saved choice is only its input. Set before the first frame to avoid a flash.
+Uniwind.setTheme(savedTheme())
+
+const savedAccent = (): Accent => {
+  const saved = prefs.get('accent')
+  return isAccent(saved) ? saved : 'indigo'
+}
+// Every theme gets the accent, so "system" switching light/dark keeps it.
+const applyAccent = (a: Accent): void =>
+  (Object.keys(PALETTES) as Palette[]).forEach((name) =>
+    Uniwind.updateCSSVariables(name, accentVars(PALETTES[name], a))
+  )
+applyAccent(savedAccent())
 
 // Expo's DOM wrapper sends props on its first render, before the native WebView exists; the page loads its
 // initial props separately, so nothing is lost. Dev-only noise.
@@ -61,12 +94,10 @@ const Main = (): React.JSX.Element | null => {
 
 export default function RootLayout(): React.JSX.Element {
   const [lang, setLang] = useState(initialLang)
-  const [theme, setTheme] = useState<Theme>(() => {
-    const saved = prefs.get('theme')
-    return isTheme(saved) ? saved : 'system'
-  })
-  const scheme = useColorScheme()
-  const colors = PALETTES[theme === 'system' ? (scheme === 'dark' ? 'dark' : 'light') : theme]
+  const uniwindTheme = useUniwind().theme
+  const [theme, setTheme] = useState(savedTheme)
+  const [accent, setAccent] = useState(savedAccent)
+  const colors = useMemo(() => withAccent(PALETTES[uniwindTheme], accent), [uniwindTheme, accent])
 
   const i18n = useMemo<I18n>(
     () => ({
@@ -83,13 +114,20 @@ export default function RootLayout(): React.JSX.Element {
   const themeCtx = useMemo<ThemeCtx>(
     () => ({
       theme,
+      accent,
       colors,
       setTheme: (t) => {
         prefs.set('theme', t)
+        Uniwind.setTheme(t)
         setTheme(t)
+      },
+      setAccent: (a) => {
+        prefs.set('accent', a)
+        applyAccent(a)
+        setAccent(a)
       }
     }),
-    [theme, colors]
+    [theme, accent, colors]
   )
   // Navigation chrome (headers, tab bar, screen transitions) takes its colours from the active palette.
   const navTheme = useMemo(() => {
@@ -117,20 +155,22 @@ export default function RootLayout(): React.JSX.Element {
   return (
     <I18nContext value={i18n}>
       <ThemeContext value={themeCtx}>
-        <ThemeProvider value={navTheme}>
-          <StatusBar style={colors.scheme === 'dark' ? 'light' : 'dark'} />
-          {supabase ? (
-            <Main />
-          ) : (
-            <Screen center>
-              {/* Developer-only setup screen, so it stays in English. */}
-              <Notice tone="warn">
-                Supabase isn&apos;t configured. Set EXPO_PUBLIC_SUPABASE_URL and
-                EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY in apps/mobile/.env, then restart Metro.
-              </Notice>
-            </Screen>
-          )}
-        </ThemeProvider>
+        <GluestackUIProvider>
+          <ThemeProvider value={navTheme}>
+            <StatusBar style={colors.scheme === 'dark' ? 'light' : 'dark'} />
+            {supabase ? (
+              <Main />
+            ) : (
+              <Screen center>
+                {/* Developer-only setup screen, so it stays in English. */}
+                <Notice tone="warn">
+                  Supabase isn&apos;t configured. Set EXPO_PUBLIC_SUPABASE_URL and
+                  EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY in apps/mobile/.env, then restart Metro.
+                </Notice>
+              </Screen>
+            )}
+          </ThemeProvider>
+        </GluestackUIProvider>
       </ThemeContext>
     </I18nContext>
   )

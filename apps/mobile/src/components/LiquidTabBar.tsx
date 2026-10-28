@@ -1,50 +1,43 @@
 import type { BottomTabBarProps } from 'expo-router/js-tabs'
 import { useEffect, useRef, useState } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Platform, Pressable } from 'react-native'
 import Animated, {
+  Easing,
   FadeIn,
   LinearTransition,
-  useAnimatedProps,
+  useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
-  withSpring,
   withTiming
 } from 'react-native-reanimated'
-import Svg, { Path } from 'react-native-svg'
-import { tint, useTheme } from '@/lib/theme'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { bottomPad, PILL, TabBarInset } from '@/lib/tabBar'
+import { useTheme } from '@/lib/theme'
+import { Box } from './gs/box'
+import { Text } from './gs/text'
 
-const AnimatedPath = Animated.createAnimatedComponent(Path)
+const LIFT = Platform.select({
+  android: { elevation: 8 },
+  default: {
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 }
+  }
+})
+const SLIDE = { duration: 260, easing: Easing.out(Easing.cubic) }
+const RESIZE = LinearTransition.duration(SLIDE.duration).easing(SLIDE.easing)
 
-// Capsule and tap target height (48pt minimum), and the bar's padding around it.
-const H = 48
-const PAD = 6
-
-// The edge in front springs stiffly and the edge behind loosely, so a move stretches the drop before it settles.
-const LEAD = { damping: 15, stiffness: 320, mass: 0.7 }
-const TRAIL = { damping: 13, stiffness: 130, mass: 0.9 }
-// The tabs resize alongside the capsule, close to its lead spring so the label lands with it.
-const RESIZE = LinearTransition.springify().damping(18).stiffness(260)
-
-// A pill from l to r. Stretched past its resting width it thins and its top and bottom pinch toward the middle,
-// the viscous neck of a drop being pulled; the neck closes as the trailing edge catches up. The bar's inner edges
-// act as walls, so an overshoot squashes against them instead of spilling out.
-const drop = (l: number, r: number, rest: number, wall: number): string => {
-  'worklet'
-  if (!rest) return 'M0 0'
-  const w = Math.max(Math.min(r, wall - PAD) - Math.max(l, PAD), H)
-  const x = Math.min(Math.max(l, PAD), wall - PAD - w)
-  const pinch = Math.min(Math.max((w - rest) / (H * 2.5), 0), 1)
-  const h = H * (1 - 0.12 * pinch)
-  const [top, bottom, rad] = [(H - h) / 2, (H + h) / 2, h / 2]
-  const [a, b] = [x + rad, x + w - rad]
-  const [m, q, dip] = [(a + b) / 2, (b - a) / 4, pinch * h * 0.36]
-  return (
-    `M${a} ${top}C${a + q} ${top} ${m - q} ${top + dip} ${m} ${top + dip}` +
-    `C${m + q} ${top + dip} ${b - q} ${top} ${b} ${top}A${rad} ${rad} 0 0 1 ${b} ${bottom}` +
-    `C${b - q} ${bottom} ${m + q} ${bottom - dip} ${m} ${bottom - dip}` +
-    `C${m - q} ${bottom - dip} ${a + q} ${bottom} ${a} ${bottom}A${rad} ${rad} 0 0 1 ${a} ${top}Z`
-  )
-}
+// pt-2 above the pill, plus 16pt so the last item never sits flush against it.
+export const TabBarInsetProvider = ({
+  children
+}: {
+  children: React.ReactNode
+}): React.JSX.Element => (
+  <TabBarInset value={PILL + 8 + bottomPad(useSafeAreaInsets().bottom) + 16}>
+    {children}
+  </TabBarInset>
+)
 
 type Slot = { x: number; width: number }
 
@@ -59,51 +52,47 @@ export const LiquidTabBar = ({
   const reduce = useReducedMotion()
   const [slots, setSlots] = useState<Record<string, Slot>>({})
   const left = useSharedValue(0)
-  const right = useSharedValue(0)
-  const rest = useSharedValue(0)
-  const wall = useSharedValue(0)
+  const width = useSharedValue(0)
   const placed = useRef(false)
   const active = state.routes[state.index]?.key ?? ''
-  const { x = 0, width = 0 } = slots[active] ?? {}
+  const slot = slots[active]
 
   useEffect(() => {
-    if (!width) return
-    rest.value = width
-    // The first placement and reduced motion jump straight there; nothing to pour.
-    if (!placed.current || reduce) {
-      placed.current = true
-      left.value = withTiming(x, { duration: 0 })
-      right.value = withTiming(x + width, { duration: 0 })
-      return
-    }
-    const forward = x > left.value
-    left.value = withSpring(x, forward ? TRAIL : LEAD)
-    right.value = withSpring(x + width, forward ? LEAD : TRAIL)
-  }, [x, width, reduce, left, right, rest])
+    if (!slot) return
+    // The first placement and reduced motion jump straight there.
+    const move = (v: number): number => (placed.current && !reduce ? withTiming(v, SLIDE) : v)
+    left.value = move(slot.x)
+    width.value = move(slot.width)
+    placed.current = true
+  }, [slot, reduce, left, width])
 
-  const capsule = useAnimatedProps(() => ({
-    d: drop(left.value, right.value, rest.value, wall.value)
+  const capsule = useAnimatedStyle(() => ({
+    width: width.value,
+    transform: [{ translateX: left.value }]
   }))
 
   return (
-    <View
-      style={[
-        s.outer,
-        { backgroundColor: c.canvas, paddingBottom: Math.max(insets.bottom, 12) + 4 }
-      ]}
+    // No background of its own: the screen shows around the pill. The bottom padding follows the safe area.
+    <Box
+      pointerEvents="box-none"
+      className="absolute right-0 bottom-0 left-0 px-4 pt-2"
+      style={{ paddingBottom: bottomPad(insets.bottom) }}
     >
-      <View
+      <Box
         accessibilityRole="tablist"
-        onLayout={(e) => wall.set(e.nativeEvent.layout.width)}
-        style={[s.bar, { backgroundColor: c.card, borderColor: c.line }]}
+        className="flex-row items-center justify-between rounded-[30px] border-[length:hairlineWidth()] border-line bg-card p-1.5"
+        style={LIFT}
       >
-        <Svg pointerEvents="none" style={s.liquid}>
-          <AnimatedPath animatedProps={capsule} fill={tint(c.accent, 0.16)} />
-        </Svg>
+        <Animated.View
+          pointerEvents="none"
+          className="absolute top-1.5 left-0 h-12 rounded-full bg-accent/15"
+          style={capsule}
+        />
         {state.routes.map((route) => {
           const options = descriptors[route.key]?.options
           const focused = route.key === active
           const label = options?.title ?? route.name
+          // React Navigation hands the icon a colour value, not a class.
           const color = focused ? c.accentFg : c.fg2
           return (
             <Animated.View
@@ -116,7 +105,8 @@ export const LiquidTabBar = ({
                     : { ...prev, [route.key]: { x: layout.x, width: layout.width } }
                 )
               }
-              style={focused ? s.wide : s.narrow}
+              // Clipped, so a label growing in with the tab never draws outside it.
+              className={focused ? 'min-w-12 shrink overflow-hidden' : 'w-12 overflow-hidden'}
             >
               <Pressable
                 accessibilityRole="tab"
@@ -131,18 +121,19 @@ export const LiquidTabBar = ({
                   if (!focused && !event.defaultPrevented) navigateToTab(route.key)
                 }}
                 onLongPress={() => emitter.emit({ type: 'tabLongPress', target: route.key })}
-                style={s.tab}
+                className="h-12 flex-row items-center justify-center gap-2 px-[13px]"
               >
                 {options?.tabBarIcon?.({ focused, color, size: 22 })}
                 {focused && (
                   <Animated.View
-                    entering={reduce ? undefined : FadeIn.duration(160).delay(90)}
-                    style={s.shrink}
+                    entering={reduce ? undefined : FadeIn.duration(160).delay(120)}
+                    className="shrink"
                   >
                     <Text
                       numberOfLines={1}
                       maxFontSizeMultiplier={1.3}
-                      style={[s.label, { color }]}
+                      // Bold on Android: a content-sized weight-600 label there loses its last letter.
+                      className="text-[14px] font-semibold text-accent-fg android:font-bold"
                     >
                       {label}
                     </Text>
@@ -152,38 +143,7 @@ export const LiquidTabBar = ({
             </Animated.View>
           )
         })}
-      </View>
-    </View>
+      </Box>
+    </Box>
   )
 }
-
-const s = StyleSheet.create({
-  outer: { paddingHorizontal: 16, paddingTop: 8 },
-  bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: PAD,
-    borderRadius: (H + PAD * 2) / 2,
-    borderWidth: StyleSheet.hairlineWidth,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8
-  },
-  liquid: { position: 'absolute', left: 0, right: 0, top: PAD, height: H },
-  // Clipped, so a label growing in with the tab never draws outside it.
-  narrow: { width: H, overflow: 'hidden' },
-  wide: { flexShrink: 1, minWidth: H, overflow: 'hidden' },
-  tab: {
-    height: H,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 13
-  },
-  shrink: { flexShrink: 1 },
-  label: { fontSize: 14, fontWeight: '600' }
-})

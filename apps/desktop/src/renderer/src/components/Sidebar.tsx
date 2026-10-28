@@ -1,4 +1,5 @@
 import type { Profile } from '@daily-status/core/database.types'
+import { Logo } from './Logo'
 import { useBusy } from '@daily-status/core/useBusy'
 import { nameOf } from '@daily-status/core/format'
 import { useT } from '@daily-status/core/i18n'
@@ -17,9 +18,7 @@ export const Sidebar = ({ view, profile, onNavigate }: Props): React.JSX.Element
   return (
     <aside className="flex w-60 max-w-[30vw] shrink-0 flex-col overflow-y-auto border-r border-line bg-panel p-4">
       <div className="mb-8 flex items-center gap-2.5 px-2">
-        <div className="grid size-8 place-items-center rounded-lg bg-accent text-xs font-bold text-on-accent">
-          DS
-        </div>
+        <Logo size={32} />
         <span className="font-semibold">Daily Status</span>
       </div>
 

@@ -27,6 +27,14 @@ export default defineConfig(
     }
   },
   {
+    // Plain Node scripts run with `npx electron`, untyped CommonJS.
+    files: ['**/*.cjs'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'off'
+    }
+  },
+  {
     files: ['**/*.{ts,tsx}'],
     plugins: {
       'react-hooks': eslintPluginReactHooks,
@@ -65,6 +73,19 @@ export default defineConfig(
               message: 'Web-only: use it from a DOM component in apps/mobile/src/dom.'
             }
           ]
+        }
+      ]
+    }
+  },
+  {
+    // Mobile styles with Uniwind classes; a StyleSheet would bypass the theme (see docs/gluestack-migration-plan.md).
+    files: ['apps/mobile/src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "MemberExpression[object.name='StyleSheet'][property.name='create']",
+          message: 'Style with className (Uniwind) instead of StyleSheet.create.'
         }
       ]
     }

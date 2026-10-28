@@ -4,9 +4,17 @@ import { today } from '@daily-status/core/supabase'
 import { ymd } from '@daily-status/core/workdays'
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
 import { CalendarDays } from 'lucide-react-native'
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Platform } from 'react-native'
+import { withUniwind } from 'uniwind'
 import { useTheme } from '@/lib/theme'
+import { HStack } from './gs/hstack'
+import { Pressable } from './gs/pressable'
+import { Text } from './gs/text'
+import { VStack } from './gs/vstack'
 import { Link } from './ui'
+
+const CalendarIcon = withUniwind(CalendarDays)
+const DatePicker = withUniwind(DateTimePicker)
 
 // Local midnight, never toISOString(): in IST that would land on the previous day.
 const toDate = (d: string): Date => new Date(`${d}T00:00`)
@@ -33,7 +41,7 @@ export const DateField = ({
   hideLabel = false
 }: Props): React.JSX.Element => {
   const { t, locale } = useT()
-  const { colors: c } = useTheme()
+  const { colors } = useTheme()
   const title = label ?? t('date')
   const bounds = { maximumDate: toDate(max ?? today()), ...(min && { minimumDate: toDate(min) }) }
   const openAndroid = (): void =>
@@ -45,20 +53,21 @@ export const DateField = ({
     })
 
   return (
-    <View style={s.field}>
-      {!hideLabel && <Text style={[s.label, { color: c.fg2 }]}>{title}</Text>}
-      <View style={s.row}>
+    <VStack className="gap-1.5">
+      {!hideLabel && <Text className="text-[14px] font-medium text-fg-2">{title}</Text>}
+      <HStack className="flex-wrap items-center gap-3">
         {Platform.OS === 'ios' && value ? (
           // iOS can follow the app's language; Android's dialog always uses the phone's.
-          <DateTimePicker
+          <DatePicker
             accessibilityLabel={title}
             value={toDate(value)}
             mode="date"
             display="compact"
             {...bounds}
             locale={locale}
-            accentColor={c.accent}
-            themeVariant={c.scheme}
+            accentColorClassName="accent-accent"
+            // Light or dark chrome for the native picker: a setting, not a colour.
+            themeVariant={colors.scheme}
             onValueChange={(_e, d) => onChange(ymd(d))}
           />
         ) : (
@@ -66,33 +75,16 @@ export const DateField = ({
             accessibilityRole="button"
             accessibilityLabel={`${title}: ${value ? fmtDate(value, locale) : t('allDates')}`}
             onPress={() => (Platform.OS === 'ios' ? onChange(today()) : openAndroid())}
-            style={[s.button, { backgroundColor: c.field, borderColor: c.line }]}
+            className="min-h-12 grow flex-row items-center gap-2.5 rounded-[10px] border border-line bg-field px-3"
           >
-            <CalendarDays size={18} color={c.fg2} />
-            <Text style={[s.value, { color: c.fg }]}>
+            <CalendarIcon size={18} colorClassName="accent-fg-2" />
+            <Text className="text-[16px] text-fg">
               {value ? fmtDate(value, locale) : t('allDates')}
             </Text>
           </Pressable>
         )}
         {clearable && value && <Link onPress={() => onChange('')}>{t('allDates')}</Link>}
-      </View>
-    </View>
+      </HStack>
+    </VStack>
   )
 }
-
-const s = StyleSheet.create({
-  field: { gap: 6 },
-  label: { fontSize: 14, fontWeight: '500' },
-  row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12 },
-  button: {
-    flexGrow: 1,
-    minHeight: 48,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10
-  },
-  value: { fontSize: 16 }
-})
