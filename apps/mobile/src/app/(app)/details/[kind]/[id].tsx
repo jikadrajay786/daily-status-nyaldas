@@ -22,6 +22,7 @@ import { TaskCard } from '@/components/TaskCard'
 import { Button, Loading, Notice, Skeleton } from '@/components/ui'
 import { useProfile } from '@/lib/profile'
 import { uuidParam } from '@/lib/route'
+import { useShareTask } from '@/lib/share'
 
 const SafeAreaView = withUniwind(RNSafeAreaView)
 const GestureHandlerRootView = withUniwind(RNGestureHandlerRootView)
@@ -64,12 +65,26 @@ const StatusDetails = ({ id }: { id: string }): React.JSX.Element => {
 const TaskDetails = ({ id }: { id: string }): React.JSX.Element => {
   const { t } = useT()
   const admin = useProfile().role === 'admin'
+  const share = useShareTask()
   const [q] = useLiveQuery(`task-details:${id}`, () => getTask(id))
   if (q.state === 'loading') return <CardsSkeleton count={1} />
   if (q.state === 'error') return <Notice tone="bad">{t(q.message)}</Notice>
   if (!q.data) return <Notice>{t('notFound')}</Notice>
   // Staff change the status right here; admins read who it's given to.
-  return admin ? <BoardCard task={q.data} full /> : <TaskCard task={q.data} index={0} />
+  const task = q.data
+  return admin ? (
+    <BoardCard
+      task={task}
+      full
+      footer={
+        <Button variant="ghost" onPress={() => share(task)}>
+          {t('shareTask')}
+        </Button>
+      }
+    />
+  ) : (
+    <TaskCard task={task} index={0} />
+  )
 }
 
 const Thread = ({ target }: { target: CommentTarget }): React.JSX.Element => {

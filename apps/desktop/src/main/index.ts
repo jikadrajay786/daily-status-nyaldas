@@ -1,10 +1,19 @@
-import { app, shell, BrowserWindow, ipcMain, nativeTheme, Notification } from 'electron'
+import {
+  app,
+  shell,
+  BrowserWindow,
+  clipboard,
+  ipcMain,
+  nativeTheme,
+  Notification,
+  ShareMenu
+} from 'electron'
 import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { CANVAS, NATIVE_SCHEME, isTheme, type Theme } from '../shared/appearance'
-import { IPC, type SizeStep } from '../shared/ipc'
+import { IPC, SHARE_VIA, type ShareVia, type SizeStep } from '../shared/ipc'
 
 // Main keeps its own copy of the theme so the first frame of the next launch already has the right background.
 const themeFile = (): string => join(app.getPath('userData'), 'appearance.json')
@@ -151,6 +160,32 @@ app.whenReady().then(() => {
     shown = [...shown.slice(-19), n]
     n.show()
     return true
+  })
+  ipcMain.handle(IPC.share, async (e, via: unknown, text: unknown) => {
+    if (
+      !SHARE_VIA.includes(via as ShareVia) ||
+      typeof text !== 'string' ||
+      !text ||
+      text.length > 20_000
+    )
+      return false
+    const open = (url: string): Promise<boolean> =>
+      shell.openExternal(url).then(
+        () => true,
+        () => false
+      )
+    const body = encodeURIComponent(text)
+    if (via === 'system') {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      if (process.platform !== 'darwin' || !win) return false
+      new ShareMenu({ texts: [text] }).popup({ window: win })
+      return true
+    }
+    if (via === 'whatsapp') return open(`https://wa.me/?text=${body}`)
+    if (via === 'email') return open(`mailto:?body=${body}`)
+    clipboard.writeText(text)
+    // Slack can't take pre-filled text, so the message waits on the clipboard while Slack opens.
+    return via === 'copy' || (await open('slack://open')) || open('https://app.slack.com/client')
   })
 
   createWindow()

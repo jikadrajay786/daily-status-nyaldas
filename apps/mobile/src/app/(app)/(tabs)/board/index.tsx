@@ -17,6 +17,7 @@ import { Openable } from '@/components/Openable'
 import { CardsSkeleton } from '@/components/StatusCard'
 import { Button, Notice, Segmented, Title, Empty } from '@/components/ui'
 import { usePullToRefresh } from '@/lib/refresh'
+import { useShareTask } from '@/lib/share'
 
 const BoardIcon = withUniwind(ClipboardList)
 
@@ -34,6 +35,9 @@ export default function Board(): React.JSX.Element {
     'task',
     all.map((task) => task.id)
   )
+  const share = useShareTask()
+  // Shows once the live list has the new task, so the message names everyone it went to.
+  const fresh = created && all.find((task) => task.id === created)
   const count = (s: TaskStatus): number => all.filter((task) => task.status === s).length
 
   return (
@@ -49,6 +53,11 @@ export default function Board(): React.JSX.Element {
             <Title sub={t('taskBoardSubtitle')}>{t('navTaskBoard')}</Title>
             <Button onPress={() => router.push('/board/new')}>{t('newTask')}</Button>
             {created && <Notice tone="ok">{t('taskCreated')}</Notice>}
+            {fresh && (
+              <Button variant="ghost" onPress={() => share(fresh)}>
+                {t('shareTask')}
+              </Button>
+            )}
             {all.length > 0 && (
               <Segmented
                 scroll

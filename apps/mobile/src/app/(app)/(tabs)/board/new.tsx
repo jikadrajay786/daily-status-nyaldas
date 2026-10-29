@@ -28,7 +28,7 @@ export default function NewTask(): React.JSX.Element {
     })
     if (!res) return
     bumpLive()
-    router.dismissTo({ pathname: '/board', params: { created: '1' } })
+    router.dismissTo({ pathname: '/board', params: { created: res.id } })
   }
 
   return (
