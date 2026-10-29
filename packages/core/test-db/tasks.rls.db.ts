@@ -4,8 +4,9 @@ import type { Database, Task } from '../src/database.types'
 import { initSupabase } from '../src/supabase'
 import {
   createTask,
-  listAllTasks,
+  listBoardTasks,
   listMyTasks,
+  listPeople,
   TASK_STATUSES,
   updateTaskStatus
 } from '../src/taskService'
@@ -25,7 +26,7 @@ if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(url) || !anon || !service
 const root = createClient<Database>(url, service, { auth: { persistSession: false } })
 const run = Date.now().toString(36)
 const password = `pw-${run}-${Math.random().toString(36).slice(2)}`
-const people = { admin: '', asha: '', ravi: '', meena: '' }
+const people = { admin: '', boss: '', asha: '', ravi: '', meena: '' }
 type Who = keyof typeof people
 
 const memory = (): {
@@ -71,11 +72,16 @@ beforeAll(async () => {
     if (error) throw error
     people[who] = data.user.id
   }
-  const { error } = await root
-    .from('profiles')
-    .update({ role: 'admin' } as never)
-    .eq('id', people.admin)
-  if (error) throw error
+  for (const [id, role] of [
+    [people.admin, 'admin'],
+    [people.boss, 'manager']
+  ] as const) {
+    const { error } = await root
+      .from('profiles')
+      .update({ role } as never)
+      .eq('id', id)
+    if (error) throw error
+  }
 })
 
 afterAll(async () => {
@@ -102,7 +108,9 @@ describe('admin', () => {
 
   it('sees the task with both assignees on the board', async () => {
     await as('admin')
-    const row = (await listAllTasks()).find((t) => t.id === task.id)
+    const row = (await listBoardTasks({ id: people.admin, role: 'admin' })).find(
+      (t) => t.id === task.id
+    )
     expect(row?.assignees.map((a) => a.id).sort()).toEqual([people.asha, people.ravi].sort())
   })
 
@@ -186,6 +194,59 @@ describe('user', () => {
       .select('*', { count: 'exact', head: true })
       .eq('task_id', task.id)
     expect(count).toBe(2)
+  })
+})
+
+describe('manager', () => {
+  let own: Task
+
+  it('picks from staff only and creates tasks for them', async () => {
+    await as('boss')
+    expect((await listPeople('manager')).map((p) => p.id).sort()).toEqual(
+      expect.arrayContaining([people.asha, people.ravi, people.meena])
+    )
+    expect((await listPeople('manager')).map((p) => p.id)).not.toContain(people.admin)
+    own = await createTask({
+      title: 'Check the till',
+      dueDate: new Date(Date.now() + 864e5).toISOString(),
+      userIds: [people.meena]
+    })
+    expect(own.created_by).toBe(people.boss)
+  })
+
+  it('cannot task an admin', async () => {
+    await as('boss')
+    await rejectsWith(
+      createTask({ title: 'Nope', dueDate: new Date().toISOString(), userIds: [people.admin] }),
+      'errTaskStaffOnly'
+    )
+  })
+
+  it('sees only the tasks they created on the board', async () => {
+    const boss = await as('boss')
+    expect((await listBoardTasks({ id: people.boss, role: 'manager' })).map((t) => t.id)).toEqual([
+      own.id
+    ])
+    expect((await boss.from('tasks').select('id').eq('id', task.id)).data).toEqual([])
+    await rejectsWith(updateTaskStatus({ taskId: task.id, status: 'blocked' }), 'errDenied')
+  })
+
+  it('never reads staff daily updates', async () => {
+    const boss = await as('boss')
+    expect(
+      (await boss.from('daily_statuses').select('id').neq('user_id', people.boss)).data
+    ).toEqual([])
+  })
+
+  it('is seen by the admin and the assignee', async () => {
+    await as('admin')
+    expect((await listBoardTasks({ id: people.admin, role: 'admin' })).map((t) => t.id)).toContain(
+      own.id
+    )
+    await as('meena')
+    expect((await updateTaskStatus({ taskId: own.id, status: 'in_progress' })).status).toBe(
+      'in_progress'
+    )
   })
 })
 

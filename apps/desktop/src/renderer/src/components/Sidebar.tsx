@@ -1,7 +1,7 @@
 import type { Profile } from '@daily-status/core/database.types'
 import { Logo } from './Logo'
 import { useBusy } from '@daily-status/core/useBusy'
-import { nameOf } from '@daily-status/core/format'
+import { nameOf, ROLE_KEY, ROLE_TONE } from '@daily-status/core/format'
 import { useT } from '@daily-status/core/i18n'
 import { db } from '@daily-status/core/supabase'
 import { canSee, NAV, type View } from '../lib/nav'
@@ -12,7 +12,6 @@ type Props = { view: View; profile: Profile; onNavigate: (v: View) => void }
 
 export const Sidebar = ({ view, profile, onNavigate }: Props): React.JSX.Element => {
   const { t } = useT()
-  const admin = profile.role === 'admin'
   const [leaving, leave] = useBusy()
   // Width capped so the largest text sizes still leave room for the page.
   return (
@@ -43,7 +42,7 @@ export const Sidebar = ({ view, profile, onNavigate }: Props): React.JSX.Element
         <div className="px-2">
           <p className="truncate text-sm font-medium">{nameOf(profile)}</p>
           <p className="mb-2 truncate text-xs text-fg-3">{profile.email}</p>
-          <Badge label={t(admin ? 'roleAdmin' : 'roleMember')} tone={admin ? 'warn' : 'idle'} />
+          <Badge label={t(ROLE_KEY[profile.role])} tone={ROLE_TONE[profile.role]} />
         </div>
         <button
           type="button"

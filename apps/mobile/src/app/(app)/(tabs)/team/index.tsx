@@ -6,7 +6,15 @@ import {
   getTeamSummaryMetrics,
   getUserDirectoryWithStats
 } from '@daily-status/core/adminService'
-import { fmtDate, fmtHours, fmtShort, initials, nameOf } from '@daily-status/core/format'
+import {
+  fmtDate,
+  fmtHours,
+  fmtShort,
+  initials,
+  nameOf,
+  ROLE_KEY,
+  ROLE_TONE
+} from '@daily-status/core/format'
 import { useT } from '@daily-status/core/i18n'
 import { today } from '@daily-status/core/supabase'
 import { useDayOff } from '@daily-status/core/holidayService'
@@ -296,10 +304,7 @@ const People = ({
               <Text numberOfLines={1} className="shrink text-[16px] font-medium text-fg">
                 {nameOf(p)}
               </Text>
-              <Badge
-                label={t(p.role === 'admin' ? 'roleAdmin' : 'roleMember')}
-                tone={p.role === 'admin' ? 'warn' : 'idle'}
-              />
+              <Badge label={t(ROLE_KEY[p.role])} tone={ROLE_TONE[p.role]} />
             </HStack>
             <Text numberOfLines={1} className="text-[13px] text-fg-3">
               {p.email}

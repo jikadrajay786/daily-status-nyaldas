@@ -1,5 +1,6 @@
 import { Check, X } from 'lucide-react'
 import { useState, type FormEvent, type KeyboardEvent } from 'react'
+import type { Role } from '@daily-status/core/database.types'
 import { initials, nameOf } from '@daily-status/core/format'
 import { useT } from '@daily-status/core/i18n'
 import { today } from '@daily-status/core/supabase'
@@ -134,9 +135,15 @@ const PeopleList = ({
   )
 }
 
-export const TaskForm = ({ onCreated }: { onCreated: () => void }): React.JSX.Element => {
+export const TaskForm = ({
+  role,
+  onCreated
+}: {
+  role: Role
+  onCreated: () => void
+}): React.JSX.Element => {
   const { t } = useT()
-  const [people] = useLiveQuery('task-people', listPeople)
+  const [people] = useLiveQuery(`task-people:${role}`, () => listPeople(role))
   const { run, busy, error } = useCreateTask()
   const [form, setForm] = useState(EMPTY)
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())

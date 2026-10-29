@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  canAssign,
   createTask,
   createTaskSchema,
   isOverdue,
+  listBoardTasks,
   listMyTasks,
+  listPeople,
+  managesTask,
   updateTaskStatus
 } from '../src/taskService'
 import { errMsg } from '../src/useQuery'
@@ -172,5 +176,40 @@ describe('reading tasks', () => {
     expect(isOverdue({ due_date: '2026-10-30T18:29:59Z', status: 'in_progress' }, now)).toBe(true)
     expect(isOverdue({ due_date: '2026-10-30T18:29:59Z', status: 'completed' }, now)).toBe(false)
     expect(isOverdue({ due_date: '2026-11-01T00:00:00Z', status: 'pending' }, now)).toBe(false)
+  })
+})
+
+describe('roles', () => {
+  it('lets admins and managers hand out tasks, not staff', () => {
+    expect([canAssign('admin'), canAssign('manager'), canAssign('user')]).toEqual([
+      true,
+      true,
+      false
+    ])
+  })
+
+  it('gives managers only the tasks they created', () => {
+    expect(managesTask({ created_by: ASHA }, { id: RAVI, role: 'admin' })).toBe(true)
+    expect(managesTask({ created_by: ASHA }, { id: ASHA, role: 'manager' })).toBe(true)
+    expect(managesTask({ created_by: ASHA }, { id: RAVI, role: 'manager' })).toBe(false)
+    expect(managesTask({ created_by: ASHA }, { id: ASHA, role: 'user' })).toBe(false)
+  })
+
+  it('offers managers staff only, admins staff and managers', async () => {
+    next = { data: [], error: null }
+    await listPeople('manager')
+    expect(calls).toContainEqual(['in', ['role', ['user']]])
+    calls.length = 0
+    await listPeople('admin')
+    expect(calls).toContainEqual(['in', ['role', ['user', 'manager']]])
+  })
+
+  it("filters a manager's board to their own tasks, never an admin's", async () => {
+    next = { data: [], error: null }
+    await listBoardTasks({ id: ASHA, role: 'manager' })
+    expect(calls).toContainEqual(['eq', ['created_by', ASHA]])
+    calls.length = 0
+    await listBoardTasks({ id: RAVI, role: 'admin' })
+    expect(calls.some(([k]) => k === 'eq')).toBe(false)
   })
 })

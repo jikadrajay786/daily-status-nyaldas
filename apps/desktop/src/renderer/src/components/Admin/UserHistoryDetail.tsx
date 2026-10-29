@@ -9,7 +9,14 @@ import {
   getUserStreak,
   type DirectoryEntry
 } from '@daily-status/core/adminService'
-import { fmtHours, fmtShort, initials, nameOf } from '@daily-status/core/format'
+import {
+  fmtHours,
+  fmtShort,
+  initials,
+  nameOf,
+  ROLE_KEY,
+  ROLE_TONE
+} from '@daily-status/core/format'
 import { useT, type Key } from '@daily-status/core/i18n'
 import { deleteStatus } from '@daily-status/core/statusService'
 import { today } from '@daily-status/core/supabase'
@@ -94,10 +101,7 @@ export const UserHistoryDetail = ({ person, version, onChanged }: Props): React.
               <h2 className="truncate text-lg font-semibold text-fg">{name}</h2>
               <p className="truncate text-sm text-fg-2">{person.email}</p>
               <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-fg-3">
-                <Badge
-                  label={t(person.role === 'admin' ? 'roleAdmin' : 'roleMember')}
-                  tone={person.role === 'admin' ? 'warn' : 'idle'}
-                />
+                <Badge label={t(ROLE_KEY[person.role])} tone={ROLE_TONE[person.role]} />
                 {t('joinedOn', { date: fmtShort(localDay(person.created_at), locale) })}
               </p>
             </div>

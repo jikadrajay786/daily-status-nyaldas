@@ -3,7 +3,7 @@ import { ClipboardList } from 'lucide-react-native'
 import { useT } from '@daily-status/core/i18n'
 import { STATUS_KEY, TASK_STATUSES } from '@daily-status/core/taskService'
 import type { TaskStatus } from '@daily-status/core/database.types'
-import { useAdminTasks } from '@daily-status/core/useTasks'
+import { useBoardTasks } from '@daily-status/core/useTasks'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useState } from 'react'
 import { FlatList, RefreshControl } from 'react-native'
@@ -17,6 +17,7 @@ import { Openable } from '@/components/Openable'
 import { CardsSkeleton } from '@/components/StatusCard'
 import { Button, Notice, Segmented, Title, Empty } from '@/components/ui'
 import { usePullToRefresh } from '@/lib/refresh'
+import { useProfile } from '@/lib/profile'
 import { useShareTask } from '@/lib/share'
 
 const BoardIcon = withUniwind(ClipboardList)
@@ -25,7 +26,7 @@ const SafeAreaView = withUniwind(RNSafeAreaView)
 
 export default function Board(): React.JSX.Element {
   const { t } = useT()
-  const [tasks, reload] = useAdminTasks()
+  const [tasks, reload] = useBoardTasks(useProfile())
   const [show, setShow] = useState<TaskStatus | 'all'>('all')
   const { created } = useLocalSearchParams<{ created?: string }>()
   const inset = useTabBarInset()

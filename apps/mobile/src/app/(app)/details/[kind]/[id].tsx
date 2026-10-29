@@ -2,7 +2,7 @@ import { useComments, type CommentTarget } from '@daily-status/core/commentServi
 import { useT } from '@daily-status/core/i18n'
 import { useLiveQuery } from '@daily-status/core/live'
 import { canChange, getProfile, getStatus } from '@daily-status/core/statusService'
-import { getTask } from '@daily-status/core/taskService'
+import { getTask, managesTask } from '@daily-status/core/taskService'
 import { router, useLocalSearchParams } from 'expo-router'
 import { ChevronLeft } from 'lucide-react-native'
 import { useRef } from 'react'
@@ -64,15 +64,15 @@ const StatusDetails = ({ id }: { id: string }): React.JSX.Element => {
 
 const TaskDetails = ({ id }: { id: string }): React.JSX.Element => {
   const { t } = useT()
-  const admin = useProfile().role === 'admin'
+  const me = useProfile()
   const share = useShareTask()
   const [q] = useLiveQuery(`task-details:${id}`, () => getTask(id))
   if (q.state === 'loading') return <CardsSkeleton count={1} />
   if (q.state === 'error') return <Notice tone="bad">{t(q.message)}</Notice>
   if (!q.data) return <Notice>{t('notFound')}</Notice>
-  // Staff change the status right here; admins read who it's given to.
+  // Assignees change the status right here; whoever hands the task out reads who it's given to.
   const task = q.data
-  return admin ? (
+  return managesTask(task, me) ? (
     <BoardCard
       task={task}
       full
