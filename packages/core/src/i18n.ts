@@ -399,7 +399,15 @@ const en = {
   minAgo: '{n} min ago',
   hoursAgo: '{n} h ago',
   you: 'You',
-  errCommentBody: 'Please write a comment (up to 2000 characters).'
+  errCommentBody: 'Please write a comment (up to 2000 characters).',
+  pushUpdates: 'Daily updates',
+  pushTasks: 'Tasks',
+  pushStatusTitle: '{name} sent their daily update',
+  pushTaskStatusTitle: '{name} updated a task',
+  pushTaskStatusBody: '{title}: {status}',
+  pushTaskAssignedTitle: 'New task for you',
+  pushTaskReminderTitle: "You haven't started this task yet",
+  pushCommentTitle: '{name} commented'
 }
 
 export type Key = keyof typeof en
@@ -784,7 +792,15 @@ const hi: Dict = {
   minAgo: '{n} मिनट पहले',
   hoursAgo: '{n} घंटे पहले',
   you: 'आप',
-  errCommentBody: 'कृपया कमेंट लिखें (2000 अक्षरों तक)।'
+  errCommentBody: 'कृपया कमेंट लिखें (2000 अक्षरों तक)।',
+  pushUpdates: 'रोज़ के अपडेट',
+  pushTasks: 'काम',
+  pushStatusTitle: '{name} ने रोज़ का अपडेट भेजा',
+  pushTaskStatusTitle: '{name} ने काम अपडेट किया',
+  pushTaskStatusBody: '{title}: {status}',
+  pushTaskAssignedTitle: 'आपके लिए नया काम',
+  pushTaskReminderTitle: 'आपने यह काम अभी शुरू नहीं किया',
+  pushCommentTitle: '{name} ने कमेंट किया'
 }
 
 const gu: Dict = {
@@ -1166,7 +1182,15 @@ const gu: Dict = {
   minAgo: '{n} મિનિટ પહેલાં',
   hoursAgo: '{n} કલાક પહેલાં',
   you: 'તમે',
-  errCommentBody: 'કૃપા કરીને કમેન્ટ લખો (2000 અક્ષર સુધી).'
+  errCommentBody: 'કૃપા કરીને કમેન્ટ લખો (2000 અક્ષર સુધી).',
+  pushUpdates: 'રોજના અપડેટ',
+  pushTasks: 'કામ',
+  pushStatusTitle: '{name} એ રોજનો અપડેટ મોકલ્યો',
+  pushTaskStatusTitle: '{name} એ કામ અપડેટ કર્યું',
+  pushTaskStatusBody: '{title}: {status}',
+  pushTaskAssignedTitle: 'તમારા માટે નવું કામ',
+  pushTaskReminderTitle: 'તમે આ કામ હજી શરૂ નથી કર્યું',
+  pushCommentTitle: '{name} એ કમેન્ટ કરી'
 }
 
 const DICTS: Record<Lang, Dict> = { en, hi, gu }

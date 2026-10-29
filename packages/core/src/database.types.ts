@@ -51,9 +51,22 @@ export type TaskAssignment = {
   task_id: string
   user_id: string
   assigned_at: string
+  // Last "not started yet" push, set by remind_pending_tasks().
+  reminded_at: string | null
 }
 
 // Exactly one of status_id / task_id is set. author_* are stamped by a trigger from the caller's profile.
+// One person's copy of a push (written by push_event()), read live by the desktop app.
+export type AppNotification = {
+  id: number
+  user_id: string
+  event: string
+  kind: 'status' | 'task'
+  target_id: string
+  vars: { name?: string; title?: string; text?: string; status?: TaskStatus }
+  created_at: string
+}
+
 export type Comment = {
   id: string
   status_id: string | null
@@ -138,6 +151,12 @@ export type Database = {
         Update: Partial<Pick<Holiday, 'name'>>
         Relationships: []
       }
+      notifications: {
+        Row: AppNotification
+        Insert: never
+        Update: never
+        Relationships: []
+      }
       comments: {
         Row: Comment
         Insert: Pick<Comment, 'body'> & Partial<Pick<Comment, 'status_id' | 'task_id'>>
@@ -176,6 +195,11 @@ export type Database = {
         Args: { p_kind: 'status' | 'task'; p_ids: string[] }
         Returns: { id: string; n: number }[]
       }
+      register_push_token: {
+        Args: { p_token: string; p_platform: 'ios' | 'android'; p_lang: 'en' | 'hi' | 'gu' }
+        Returns: undefined
+      }
+      unregister_push_token: { Args: { p_token: string }; Returns: undefined }
     }
     Enums: { task_status: TaskStatus }
   }

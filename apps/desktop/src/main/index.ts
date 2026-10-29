@@ -102,6 +102,8 @@ app.on('second-instance', () => {
   win?.focus()
 })
 
+let shown: Notification[] = []
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
@@ -110,8 +112,8 @@ app.whenReady().then(() => {
   if (is.dev) app.dock?.setIcon(icon)
   theme = loadTheme()
   applyTheme()
-  // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
+  // Must match electron-builder's appId, or Windows shows notifications under the wrong name or not at all.
+  electronApp.setAppUserModelId('com.electron.app')
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -132,11 +134,24 @@ app.whenReady().then(() => {
   nativeTheme.on('updated', syncBackground)
   ipcMain.handle(IPC.ping, () => 'pong')
   ipcMain.handle(IPC.getAppVersion, () => app.getVersion())
-  ipcMain.handle(IPC.notify, (_, title: unknown, body: unknown) =>
-    typeof title === 'string' && typeof body === 'string' && Notification.isSupported()
-      ? (new Notification({ title, body }).show(), true)
-      : false
-  )
+  ipcMain.handle(IPC.notify, (e, title: unknown, body: unknown, open: unknown) => {
+    if (typeof title !== 'string' || typeof body !== 'string' || !Notification.isSupported())
+      return false
+    const n = new Notification({ title: title.slice(0, 200), body: body.slice(0, 500) })
+    if (typeof open === 'string' && /^(status|task):[0-9a-f-]{36}$/.test(open))
+      n.on('click', () => {
+        const win = BrowserWindow.fromWebContents(e.sender)
+        if (!win || win.isDestroyed()) return
+        if (win.isMinimized()) win.restore()
+        win.show()
+        win.focus()
+        e.sender.send(IPC.notifyClick, open)
+      })
+    // Electron drops a notification's click handler once nothing references it, so the latest few are kept.
+    shown = [...shown.slice(-19), n]
+    n.show()
+    return true
+  })
 
   createWindow()
 

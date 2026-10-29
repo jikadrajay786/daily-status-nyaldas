@@ -1,7 +1,6 @@
 import { useBusy } from '@daily-status/core/useBusy'
 import { unlockMessage } from '@daily-status/core/appLock'
 import { useT, type Key } from '@daily-status/core/i18n'
-import { db } from '@daily-status/core/supabase'
 import * as Haptics from 'expo-haptics'
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { AppState } from 'react-native'
@@ -9,6 +8,7 @@ import { SafeAreaView as RNSafeAreaView } from 'react-native-safe-area-context'
 import { withUniwind } from 'uniwind'
 import { Button, Link, Notice } from '@/components/ui'
 import { askToUnlock, checkSupport, setLockOn, type LockState } from '@/lib/appLock'
+import { signOut } from '@/lib/push'
 import { Box } from './gs/box'
 import { Logo } from './Logo'
 import { Heading } from './gs/heading'
@@ -85,7 +85,7 @@ const LockScreen = ({
     // Leaving through the password also switches the lock off when Face ID or fingerprint is gone, so it doesn't
     // block the next launch the same way.
     if (message === 'lockGone') setLockOn(userId, false)
-    void leave(() => db().auth.signOut())
+    void leave(signOut)
   }
 
   return (

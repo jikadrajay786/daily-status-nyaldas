@@ -4,7 +4,9 @@ import { Stack } from 'expo-router'
 import { AppLockGate } from '@/components/AppLock'
 import { QuickCommentProvider } from '@/components/QuickComment'
 import { useAppLock } from '@/lib/appLock'
+import { useNotificationTaps } from '@/lib/notifications'
 import { useProfile } from '@/lib/profile'
+import { usePush } from '@/lib/push'
 import { useReminders } from '@/lib/reminder'
 
 // The tabs, with details screens pushed over them; the lock covers both.
@@ -12,6 +14,8 @@ export default function AppLayout(): React.JSX.Element {
   const { t, lang } = useT()
   const { id, role } = useProfile()
   useReminders(role !== 'admin' ? id : null, lang)
+  usePush(id, lang)
+  useNotificationTaps()
   useRealtimeSync(id)
   const lock = useAppLock(id)
   return (

@@ -2,3 +2,5 @@
 /android
 .expo/
 expo-env.d.ts
+# Firebase config for this Android app; download it from the Firebase console (Project settings → Your apps).
+google-services.json
