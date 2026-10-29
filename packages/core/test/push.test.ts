@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { channelOf, PUSH_EVENTS, pushData, pushServerConfig } from '../src/push'
+import { channelOf, PUSH_EVENTS, pushData, pushServerConfig, pushText } from '../src/push'
 
 describe('push data', () => {
   const id = '6f1c2a4e-8b7d-4c3a-9e21-5d4f3a2b1c0d'
@@ -30,5 +30,22 @@ describe('push data', () => {
 export const PUSH = ${JSON.stringify(pushServerConfig(), null, 2)} as const
 `
     await expect(src).toMatchFileSnapshot('../../../supabase/functions/notify/messages.gen.ts')
+  })
+
+  it("words desktop alerts like the pushes, in the reader's language", () => {
+    expect(pushText({ event: 'taskAssigned', vars: { text: 'Count stock' } }, 'en')).toEqual({
+      title: 'New task for you',
+      body: 'Count stock'
+    })
+    expect(
+      pushText(
+        { event: 'taskStatus', vars: { name: 'Jay', title: 'Count stock', status: 'completed' } },
+        'hi'
+      )
+    ).toEqual({ title: 'Jay ने काम अपडेट किया', body: 'Count stock: हो गया' })
+    expect(
+      pushText({ event: 'statusSubmitted', vars: { name: 'Jay', text: '  Did   it ' } }, 'en')?.body
+    ).toBe('Did it')
+    expect(pushText({ event: 'somethingNew', vars: {} }, 'en')).toBeNull()
   })
 })

@@ -1,5 +1,7 @@
+import { useEffect, useEffectEvent } from 'react'
 import type { CommentTarget } from './commentService'
-import { LANG_LIST, translator, type Key, type Lang } from './i18n'
+import type { AppNotification } from './database.types'
+import { LANG_LIST, translator, type Key, type Lang, type Vars } from './i18n'
 import { db, unwrap } from './supabase'
 import { STATUS_KEY, TASK_STATUSES } from './taskService'
 
@@ -65,6 +67,47 @@ export const pushServerConfig = (): PushServerConfig => ({
     })
   )
 })
+
+// The words the notify function sends, for alerts an app shows itself (desktop). Null for an event this build
+// doesn't know yet.
+export const pushText = (
+  { event, vars }: Pick<AppNotification, 'event' | 'vars'>,
+  lang: Lang
+): { title: string; body: string } | null => {
+  if (!PUSH_EVENTS.includes(event as PushEvent)) return null
+  const t = translator(lang)
+  const { title, body } = PUSH_TEXT[event as PushEvent]
+  const v = Object.fromEntries(
+    Object.entries({ ...vars, status: vars.status && t(STATUS_KEY[vars.status]) }).filter(
+      (e): e is [string, string] => typeof e[1] === 'string'
+    )
+  ) as Vars
+  return {
+    title: t(title, v),
+    body: (body ? t(body, v) : (vars.text ?? '')).replace(/\s+/g, ' ').trim()
+  }
+}
+
+// Each notification addressed to this person while the app is open, as it is written.
+export const useNotificationFeed = (userId: string, onNew: (n: AppNotification) => void): void => {
+  const handle = useEffectEvent(onNew)
+  useEffect(() => {
+    const ch = db()
+      .channel(`notifications:${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${userId}`
+        },
+        ({ new: n }) => handle(n as AppNotification)
+      )
+      .subscribe()
+    return () => void db().removeChannel(ch)
+  }, [userId])
+}
 
 // A push's data comes from outside the app, so it is checked before anything navigates on it.
 export const pushData = (raw: unknown): PushData | null => {

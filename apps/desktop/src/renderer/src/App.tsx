@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { CalendarPage } from './components/CalendarPage'
+import { DesktopAlerts } from './components/DesktopAlerts'
 import { DetailsProvider } from './components/Details'
 import { AdminDashboard } from './components/AdminDashboard'
 import { AppearanceSettings } from './components/AppearanceSettings'
@@ -73,6 +74,7 @@ const Workspace = ({ profile }: { profile: Profile }): React.JSX.Element => {
 
   return (
     <DetailsProvider me={profile}>
+      <DesktopAlerts userId={profile.id} />
       <div className="flex h-screen bg-canvas text-fg">
         <Sidebar view={active} profile={profile} onNavigate={setView} />
         <main className="flex-1 overflow-y-auto [scrollbar-gutter:stable]">

@@ -6,8 +6,13 @@ import { IPC, type Api, type SizeStep } from '../shared/ipc'
 const api: Api = {
   ping: () => ipcRenderer.invoke(IPC.ping),
   getAppVersion: () => ipcRenderer.invoke(IPC.getAppVersion),
-  notify: (title, body) => ipcRenderer.invoke(IPC.notify, title, body),
+  notify: (title, body, open) => ipcRenderer.invoke(IPC.notify, title, body, open),
   setTheme: (theme) => ipcRenderer.invoke(IPC.setTheme, theme),
+  onNotifyClick: (cb) => {
+    const fn = (_: unknown, open: string): void => cb(open)
+    ipcRenderer.on(IPC.notifyClick, fn)
+    return () => ipcRenderer.off(IPC.notifyClick, fn)
+  },
   onTextSize: (cb) => {
     const fn = (_: unknown, step: SizeStep): void => cb(step)
     ipcRenderer.on(IPC.textSize, fn)

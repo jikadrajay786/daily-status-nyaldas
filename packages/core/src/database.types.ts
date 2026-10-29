@@ -56,6 +56,17 @@ export type TaskAssignment = {
 }
 
 // Exactly one of status_id / task_id is set. author_* are stamped by a trigger from the caller's profile.
+// One person's copy of a push (written by push_event()), read live by the desktop app.
+export type AppNotification = {
+  id: number
+  user_id: string
+  event: string
+  kind: 'status' | 'task'
+  target_id: string
+  vars: { name?: string; title?: string; text?: string; status?: TaskStatus }
+  created_at: string
+}
+
 export type Comment = {
   id: string
   status_id: string | null
@@ -138,6 +149,12 @@ export type Database = {
         Row: Holiday
         Insert: Pick<Holiday, 'day' | 'name'>
         Update: Partial<Pick<Holiday, 'name'>>
+        Relationships: []
+      }
+      notifications: {
+        Row: AppNotification
+        Insert: never
+        Update: never
         Relationships: []
       }
       comments: {
