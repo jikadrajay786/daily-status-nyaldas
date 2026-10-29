@@ -18,6 +18,7 @@ import { CardsSkeleton } from './Skeletons'
 import { StatusCard } from './StatusCard'
 import { StatusPicker } from './Tasks/StatusPicker'
 import { People } from './Tasks/TaskBoard'
+import { ShareButton } from './Tasks/ShareButton'
 import { TaskMeta } from './Tasks/TaskMeta'
 import { Avatar, Badge, Button, Card, Loading, Notice, Skeleton, TextArea } from './ui'
 import type { Profile } from '@daily-status/core/database.types'
@@ -56,7 +57,14 @@ const TaskDetails = ({ id, me }: { id: string; me: Profile }): React.JSX.Element
       )}
       {/* Staff change the status here; admins see who it is given to. */}
       <div className="mt-4 border-t border-line pt-4">
-        {me.role === 'admin' ? <People people={task.assignees} /> : <StatusPicker task={task} />}
+        {me.role === 'admin' ? (
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <People people={task.assignees} />
+            <ShareButton task={task} />
+          </div>
+        ) : (
+          <StatusPicker task={task} />
+        )}
       </div>
     </Card>
   )

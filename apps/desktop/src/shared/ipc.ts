@@ -7,8 +7,13 @@ export const IPC = {
   notify: 'notify',
   notifyClick: 'notify-click',
   setTheme: 'set-theme',
-  textSize: 'text-size'
+  textSize: 'text-size',
+  share: 'share'
 } as const
+
+// "system" is the macOS share menu; elsewhere the renderer offers the named apps only.
+export const SHARE_VIA = ['system', 'whatsapp', 'email', 'slack', 'copy'] as const
+export type ShareVia = (typeof SHARE_VIA)[number]
 
 // Ctrl/Cmd with +, - or 0: one size step bigger or smaller, or 0 for the default size.
 export type SizeStep = 1 | -1 | 0
@@ -24,4 +29,6 @@ export interface Api {
   setTheme: (theme: Theme) => Promise<void>
   // Zoom shortcuts change the Text size setting instead of zooming, so the two never stack. Returns an unsubscribe.
   onTextSize: (cb: (step: SizeStep) => void) => () => void
+  // Sends plain text to another app. False when that way isn't available here.
+  share: (via: ShareVia, text: string) => Promise<boolean>
 }

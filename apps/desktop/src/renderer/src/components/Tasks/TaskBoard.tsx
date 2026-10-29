@@ -16,6 +16,7 @@ import { useAdminTasks, useUpdateTaskStatus } from '@daily-status/core/useTasks'
 import { CardsSkeleton } from '../Skeletons'
 import { Avatar, Button, Notice, PageHeader, Empty } from '../ui'
 import { CommentsButton } from '../CommentsButton'
+import { ShareButton } from './ShareButton'
 import { StatusPicker } from './StatusPicker'
 import { TaskForm } from './TaskForm'
 import { TaskMeta } from './TaskMeta'
@@ -174,12 +175,13 @@ const Board = ({ tasks }: { tasks: BoardTask[] }): React.JSX.Element => {
                     )}
                     <People people={task.assignees} />
                     <StatusPicker task={shown} />
-                    <span className="self-start">
+                    <div className="flex flex-wrap items-center gap-2">
                       <CommentsButton
                         target={{ kind: 'task', id: task.id }}
                         count={counts[task.id]}
                       />
-                    </span>
+                      <ShareButton task={shown} />
+                    </div>
                   </article>
                 )
               })}

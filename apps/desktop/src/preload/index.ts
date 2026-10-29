@@ -8,6 +8,7 @@ const api: Api = {
   getAppVersion: () => ipcRenderer.invoke(IPC.getAppVersion),
   notify: (title, body, open) => ipcRenderer.invoke(IPC.notify, title, body, open),
   setTheme: (theme) => ipcRenderer.invoke(IPC.setTheme, theme),
+  share: (via, text) => ipcRenderer.invoke(IPC.share, via, text),
   onNotifyClick: (cb) => {
     const fn = (_: unknown, open: string): void => cb(open)
     ipcRenderer.on(IPC.notifyClick, fn)
