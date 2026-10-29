@@ -1,7 +1,7 @@
 import { ClipboardList } from 'lucide-react'
 import { useCommentCounts } from '@daily-status/core/commentService'
 import { useState } from 'react'
-import type { TaskStatus } from '@daily-status/core/database.types'
+import type { Profile, TaskStatus } from '@daily-status/core/database.types'
 import type { Tone } from '@daily-status/core/format'
 import { initials, nameOf } from '@daily-status/core/format'
 import { useT } from '@daily-status/core/i18n'
@@ -12,7 +12,7 @@ import {
   type Assignee,
   type BoardTask
 } from '@daily-status/core/taskService'
-import { useAdminTasks, useUpdateTaskStatus } from '@daily-status/core/useTasks'
+import { useBoardTasks, useUpdateTaskStatus } from '@daily-status/core/useTasks'
 import { CardsSkeleton } from '../Skeletons'
 import { Avatar, Button, Notice, PageHeader, Empty } from '../ui'
 import { CommentsButton } from '../CommentsButton'
@@ -193,14 +193,14 @@ const Board = ({ tasks }: { tasks: BoardTask[] }): React.JSX.Element => {
   )
 }
 
-export const TaskBoard = (): React.JSX.Element => {
+export const TaskBoard = ({ profile }: { profile: Profile }): React.JSX.Element => {
   const { t } = useT()
-  const [tasks, reload] = useAdminTasks()
+  const [tasks, reload] = useBoardTasks(profile)
   return (
     <>
       <PageHeader title={t('navTaskBoard')} subtitle={t('taskBoardSubtitle')} />
       <div className="flex flex-col gap-6">
-        <TaskForm onCreated={reload} />
+        <TaskForm role={profile.role} onCreated={reload} />
         {tasks.state === 'loading' ? (
           <CardsSkeleton />
         ) : tasks.state === 'error' ? (

@@ -1,7 +1,14 @@
-import type { Profile } from './database.types'
-import type { T } from './i18n'
+import type { Profile, Role } from './database.types'
+import type { Key, T } from './i18n'
 
 export type Tone = 'ok' | 'info' | 'warn' | 'bad' | 'idle'
+
+export const ROLE_KEY: Record<Role, Key> = {
+  user: 'roleMember',
+  manager: 'roleManager',
+  admin: 'roleAdmin'
+}
+export const ROLE_TONE: Record<Role, Tone> = { user: 'idle', manager: 'info', admin: 'warn' }
 
 // Appending T00:00 parses the date as local midnight; a bare YYYY-MM-DD is parsed as UTC.
 export const fmtDate = (d: string, locale: string): string =>

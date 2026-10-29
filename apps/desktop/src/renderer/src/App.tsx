@@ -62,7 +62,7 @@ const Workspace = ({ profile }: { profile: Profile }): React.JSX.Element => {
       case 'team':
         return <AdminDashboard />
       case 'taskBoard':
-        return <TaskBoard />
+        return <TaskBoard profile={profile} />
       case 'calendar':
         return <CalendarPage profile={profile} />
       case 'appearance':

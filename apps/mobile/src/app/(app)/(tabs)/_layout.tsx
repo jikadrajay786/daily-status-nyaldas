@@ -1,4 +1,5 @@
 import { useT } from '@daily-status/core/i18n'
+import { canAssign } from '@daily-status/core/taskService'
 import { Tabs } from 'expo-router/js-tabs'
 import {
   CalendarCheck,
@@ -21,7 +22,8 @@ const icon = (Icon: LucideIcon) =>
 
 export default function TabsLayout(): React.JSX.Element {
   const { t } = useT()
-  const staff = useProfile().role !== 'admin'
+  const { role } = useProfile()
+  const staff = role !== 'admin'
   return (
     <TabBarInsetProvider>
       <Tabs tabBar={(props) => <LiquidTabBar {...props} />} screenOptions={{ headerShown: false }}>
@@ -43,6 +45,9 @@ export default function TabsLayout(): React.JSX.Element {
         {/* Hidden for non-admins; RLS is what actually keeps team data from them. */}
         <Tabs.Protected guard={!staff}>
           <Tabs.Screen name="team" options={{ title: t('navTeam'), tabBarIcon: icon(Users) }} />
+        </Tabs.Protected>
+        {/* Managers report like staff and also hand out tasks. */}
+        <Tabs.Protected guard={canAssign(role)}>
           <Tabs.Screen
             name="board"
             options={{ title: t('navTaskBoard'), tabBarIcon: icon(ClipboardList) }}

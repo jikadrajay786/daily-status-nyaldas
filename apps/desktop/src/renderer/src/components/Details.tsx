@@ -6,11 +6,11 @@ import {
   type CommentTarget
 } from '@daily-status/core/commentService'
 import type { Comment } from '@daily-status/core/database.types'
-import { fmtAgo, initials } from '@daily-status/core/format'
+import { fmtAgo, initials, ROLE_KEY } from '@daily-status/core/format'
 import { useT } from '@daily-status/core/i18n'
 import { useLiveQuery } from '@daily-status/core/live'
 import { getProfile, getStatus } from '@daily-status/core/statusService'
-import { getTask } from '@daily-status/core/taskService'
+import { getTask, managesTask } from '@daily-status/core/taskService'
 import { Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { DetailsContext } from '../lib/details'
@@ -55,9 +55,9 @@ const TaskDetails = ({ id, me }: { id: string; me: Profile }): React.JSX.Element
       {task.description && (
         <p className="mt-3 text-sm/relaxed whitespace-pre-line text-fg-2">{task.description}</p>
       )}
-      {/* Staff change the status here; admins see who it is given to. */}
+      {/* Assignees change the status here; whoever hands the task out sees who it is given to. */}
       <div className="mt-4 border-t border-line pt-4">
-        {me.role === 'admin' ? (
+        {managesTask(task, me) ? (
           <div className="flex flex-wrap items-end justify-between gap-3">
             <People people={task.assignees} />
             <ShareButton task={task} />
@@ -81,7 +81,7 @@ const CommentRow = ({ c, me }: { c: Comment; me: Profile }): React.JSX.Element =
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
           <span className="font-semibold text-fg">{mine ? t('you') : c.author_name}</span>
-          {c.author_role === 'admin' && <Badge label={t('roleAdmin')} tone="info" />}
+          {c.author_role !== 'user' && <Badge label={t(ROLE_KEY[c.author_role])} tone="info" />}
           <time
             dateTime={c.created_at}
             title={new Date(c.created_at).toLocaleString(locale, {

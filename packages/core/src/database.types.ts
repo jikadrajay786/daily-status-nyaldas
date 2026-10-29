@@ -1,5 +1,5 @@
 // Hand-written so check constraints become literal unions; `supabase gen types` widens them to string.
-export type Role = 'user' | 'admin'
+export type Role = 'user' | 'manager' | 'admin'
 
 export type Profile = {
   id: string

@@ -8,7 +8,15 @@ import {
   getUserDirectoryWithStats,
   getUserStreak
 } from '@daily-status/core/adminService'
-import { fmtDate, fmtHours, fmtShort, initials, nameOf } from '@daily-status/core/format'
+import {
+  fmtDate,
+  fmtHours,
+  fmtShort,
+  initials,
+  nameOf,
+  ROLE_KEY,
+  ROLE_TONE
+} from '@daily-status/core/format'
 import { useT, type Key } from '@daily-status/core/i18n'
 import { deleteStatus } from '@daily-status/core/statusService'
 import { today } from '@daily-status/core/supabase'
@@ -154,10 +162,7 @@ export default function Person(): React.JSX.Element {
                       {person.email}
                     </Text>
                     <HStack className="mt-1 flex-wrap items-center gap-2">
-                      <Badge
-                        label={t(person.role === 'admin' ? 'roleAdmin' : 'roleMember')}
-                        tone={person.role === 'admin' ? 'warn' : 'idle'}
-                      />
+                      <Badge label={t(ROLE_KEY[person.role])} tone={ROLE_TONE[person.role]} />
                       <Text className="text-[13px] text-fg-3">
                         {t('joinedOn', { date: fmtShort(localDay(person.created_at), locale) })}
                       </Text>

@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import type { Task } from './database.types'
+import type { Profile, Task } from './database.types'
 import type { Key } from './i18n'
 import { useLiveQuery } from './live'
 import {
   createTask,
-  listAllTasks,
+  listBoardTasks,
   listMyTasks,
   updateTaskStatus,
   type BoardTask,
@@ -13,8 +13,10 @@ import {
 } from './taskService'
 import { errMsg, type Query } from './useQuery'
 
-export const useAdminTasks = (): [Query<BoardTask[]>, () => void, boolean] =>
-  useLiveQuery('tasks:all', listAllTasks)
+export const useBoardTasks = (
+  me: Pick<Profile, 'id' | 'role'>
+): [Query<BoardTask[]>, () => void, boolean] =>
+  useLiveQuery(`tasks:board:${me.role}:${me.id}`, () => listBoardTasks(me))
 
 export const useUserTasks = (userId: string): [Query<Task[]>, () => void, boolean] =>
   useLiveQuery(`tasks:${userId}`, () => listMyTasks(userId))

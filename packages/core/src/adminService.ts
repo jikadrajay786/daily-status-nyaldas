@@ -33,7 +33,7 @@ export const getAllTeamStatuses = async ({ date, userId, search = '' }: TeamFilt
   let req = db()
     .from('daily_statuses')
     .select('*, profile:profiles!inner(full_name, email, role)')
-    .eq('profile.role', 'user')
+    .neq('profile.role', 'admin')
   if (date) req = req.eq('date', date)
   if (userId) req = req.eq('user_id', userId)
   if (q)
@@ -51,9 +51,9 @@ export const getAllTeamStatuses = async ({ date, userId, search = '' }: TeamFilt
   )
 }
 
-// Admins manage the team rather than belong to it: no counts, no missing list, no People entry.
+// Admins manage the team rather than belong to it: no counts, no missing list, no People entry. Managers report like staff.
 const staff = async (): Promise<Profile[]> =>
-  unwrap(await db().from('profiles').select().eq('role', 'user').order('full_name'))
+  unwrap(await db().from('profiles').select().neq('role', 'admin').order('full_name'))
 
 const teamDay = async (
   date: string

@@ -5,7 +5,7 @@ import {
   type CommentTarget
 } from '@daily-status/core/commentService'
 import type { Comment } from '@daily-status/core/database.types'
-import { fmtAgo, initials } from '@daily-status/core/format'
+import { fmtAgo, initials, ROLE_KEY } from '@daily-status/core/format'
 import { useT } from '@daily-status/core/i18n'
 import { MessageCircle, Trash2 } from 'lucide-react-native'
 import { useState } from 'react'
@@ -36,7 +36,7 @@ const CommentRow = ({ c }: { c: Comment }): React.JSX.Element => {
           <Text className="text-[15px] font-semibold text-fg">
             {mine ? t('you') : c.author_name}
           </Text>
-          {c.author_role === 'admin' && <Badge label={t('roleAdmin')} tone="info" />}
+          {c.author_role !== 'user' && <Badge label={t(ROLE_KEY[c.author_role])} tone="info" />}
           <Text className="text-[13px] text-fg-3">{fmtAgo(c.created_at, t, locale)}</Text>
           {(mine || me.role === 'admin') && !confirming && (
             <Pressable

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { DirectoryEntry } from '@daily-status/core/adminService'
-import { fmtShort, initials, nameOf } from '@daily-status/core/format'
+import { fmtShort, initials, nameOf, ROLE_KEY, ROLE_TONE } from '@daily-status/core/format'
 import { useT } from '@daily-status/core/i18n'
 import type { Query } from '@daily-status/core/useQuery'
 import { PeopleSkeleton } from '../Skeletons'
@@ -54,10 +54,7 @@ export const UserDirectoryList = ({ dir, selected, onSelect }: Props): React.JSX
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-2">
                       <span className="truncate text-sm font-medium text-fg">{nameOf(p)}</span>
-                      <Badge
-                        label={t(p.role === 'admin' ? 'roleAdmin' : 'roleMember')}
-                        tone={p.role === 'admin' ? 'warn' : 'idle'}
-                      />
+                      <Badge label={t(ROLE_KEY[p.role])} tone={ROLE_TONE[p.role]} />
                     </span>
                     <span className="block truncate text-xs text-fg-3">{p.email}</span>
                     <span className="block text-xs text-fg-2">

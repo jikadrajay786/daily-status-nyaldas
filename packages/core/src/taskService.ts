@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Profile, Task, TaskStatus } from './database.types'
+import type { Profile, Role, Task, TaskStatus } from './database.types'
 import type { Tone } from './format'
 import type { Key } from './i18n'
 import { changed } from './statusService'
@@ -69,23 +69,35 @@ export const isOverdue = (t: Pick<Task, 'due_date' | 'status'>, now = new Date()
 
 const byDue = (a: Task, b: Task): number => a.due_date.localeCompare(b.due_date)
 
-// Tasks go to staff only; admins hand them out.
-export const listPeople = async (): Promise<Assignee[]> =>
-  unwrap(
-    await db().from('profiles').select('id, full_name, email').eq('role', 'user').order('full_name')
-  )
+type Me = Pick<Profile, 'id' | 'role'>
 
-export const listAllTasks = async (): Promise<BoardTask[]> =>
+// Admins and managers hand out tasks; a manager manages only the ones they created.
+export const canAssign = (role: Role): boolean => role !== 'user'
+export const managesTask = (task: Pick<Task, 'created_by'>, me: Me): boolean =>
+  me.role === 'admin' || (me.role === 'manager' && task.created_by === me.id)
+
+// Admins give tasks to staff and managers; managers only to staff.
+export const listPeople = async (role: Role): Promise<Assignee[]> =>
   unwrap(
     await db()
-      .from('tasks')
-      .select('*, task_assignments(profile:profiles(id, full_name, email))')
-      .order('due_date')
-      .limit(500)
+      .from('profiles')
+      .select('id, full_name, email')
+      .in('role', role === 'admin' ? ['user', 'manager'] : ['user'])
+      .order('full_name')
+  )
+
+// A manager can also read tasks given to them, so their board filters to the ones they created.
+export const listBoardTasks = async (me: Me): Promise<BoardTask[]> => {
+  const req = db()
+    .from('tasks')
+    .select('*, task_assignments(profile:profiles(id, full_name, email))')
+  return unwrap(
+    await (me.role === 'admin' ? req : req.eq('created_by', me.id)).order('due_date').limit(500)
   ).map(({ task_assignments, ...t }) => ({
     ...t,
     assignees: task_assignments.flatMap((a) => (a.profile ? [a.profile] : []))
   }))
+}
 
 // Staff only see themselves among the assignees (RLS); admins see everyone.
 export const getTask = async (id: string): Promise<BoardTask | null> => {
@@ -101,7 +113,7 @@ export const getTask = async (id: string): Promise<BoardTask | null> => {
   return { ...t, assignees: task_assignments.flatMap((a) => (a.profile ? [a.profile] : [])) }
 }
 
-// Through the user's own assignments: admins can read every task, but this list is only theirs.
+// Through the user's own assignments: admins and managers read more tasks, but this list is only theirs.
 export const listMyTasks = async (userId: string): Promise<Task[]> =>
   unwrap(
     await db().from('task_assignments').select('task:tasks(*)').eq('user_id', userId).limit(500)
