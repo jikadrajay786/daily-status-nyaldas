@@ -64,6 +64,11 @@ beforeAll(async () => {
     })
     if (error) throw error
     ids[who] = data.user.id
+    // Sign-ups wait for an admin (approve_signup); these accounts skip the queue.
+    await root
+      .from('profiles')
+      .upsert({ id: data.user.id, email: data.user.email, full_name: `${who} E2E` } as never)
+      .throwOnError()
   }
 })
 
