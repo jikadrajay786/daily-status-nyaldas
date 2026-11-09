@@ -4,11 +4,35 @@ import type { Key, T } from './i18n'
 export type Tone = 'ok' | 'info' | 'warn' | 'bad' | 'idle'
 
 export const ROLE_KEY: Record<Role, Key> = {
-  user: 'roleMember',
+  user: 'roleStaff',
   manager: 'roleManager',
+  store_manager: 'roleStoreManager',
+  agency_manager: 'roleAgencyManager',
   admin: 'roleAdmin'
 }
-export const ROLE_TONE: Record<Role, Tone> = { user: 'idle', manager: 'info', admin: 'warn' }
+export const ROLE_TONE: Record<Role, Tone> = {
+  user: 'idle',
+  manager: 'info',
+  store_manager: 'info',
+  agency_manager: 'info',
+  admin: 'warn'
+}
+export const ROLES = [
+  'user',
+  'manager',
+  'store_manager',
+  'agency_manager',
+  'admin'
+] as const satisfies readonly Role[]
+export const ROLE_EFFECT: Record<Role, Key> = {
+  user: 'roleEffectUser',
+  manager: 'roleEffectManager',
+  store_manager: 'roleEffectLead',
+  agency_manager: 'roleEffectLead',
+  admin: 'roleEffectAdmin'
+}
+// Staff report to these two, who then see their updates, handle their tasks and decide their leave.
+export const isLead = (role: Role): boolean => role === 'store_manager' || role === 'agency_manager'
 
 // Appending T00:00 parses the date as local midnight; a bare YYYY-MM-DD is parsed as UTC.
 export const fmtDate = (d: string, locale: string): string =>
@@ -25,6 +49,9 @@ export const fmtShort = (d: string, locale: string): string =>
     month: 'short',
     year: 'numeric'
   })
+
+export const fmtStamp = (iso: string, locale: string): string =>
+  new Date(iso).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' })
 
 export const fmtHours = (h: number, t: T): string => t('hoursShort', { n: +h.toFixed(2) })
 

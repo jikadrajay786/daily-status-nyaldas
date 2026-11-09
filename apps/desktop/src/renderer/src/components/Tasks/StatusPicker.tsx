@@ -1,6 +1,6 @@
 import { LoaderCircle } from 'lucide-react'
 import { useState } from 'react'
-import type { Task, TaskStatus } from '@daily-status/core/database.types'
+import type { TaskStatus } from '@daily-status/core/database.types'
 import { useT } from '@daily-status/core/i18n'
 import type { Tone } from '@daily-status/core/format'
 import { STATUS_KEY, STATUS_TONE, TASK_STATUSES } from '@daily-status/core/taskService'
@@ -16,26 +16,33 @@ const PICKED: Record<Tone, string> = {
   bad: 'bg-bad/15 text-bad-fg ring-bad/50'
 }
 
+// One person's own status on a task: the viewer's, or someone's they look after.
 export const StatusPicker = ({
-  task
+  taskId,
+  userId,
+  status,
+  label
 }: {
-  task: Pick<Task, 'id' | 'status'>
+  taskId: string
+  userId: string
+  status: TaskStatus
+  label?: string
 }): React.JSX.Element => {
   const { t } = useT()
   const { run, busy, error } = useUpdateTaskStatus()
   // Shows the choice straight away; the realtime refetch then confirms it.
   const [want, setWant] = useState<TaskStatus | null>(null)
-  if (want === task.status) setWant(null)
-  const shown = want ?? task.status
+  if (want === status) setWant(null)
+  const shown = want ?? status
 
-  const pick = async (status: TaskStatus): Promise<void> => {
-    setWant(status)
-    if (!(await run({ taskId: task.id, status }))) setWant(null)
+  const pick = async (next: TaskStatus): Promise<void> => {
+    setWant(next)
+    if (!(await run({ taskId, userId, status: next }))) setWant(null)
   }
 
   return (
     <div className="flex flex-col gap-2">
-      <div role="group" aria-label={t('taskStatus')} className="flex flex-wrap gap-1.5">
+      <div role="group" aria-label={label ?? t('taskStatus')} className="flex flex-wrap gap-1.5">
         {TASK_STATUSES.map((s) => (
           <button
             key={s}
