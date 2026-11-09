@@ -1,5 +1,5 @@
 import { translator, type Lang } from '@daily-status/core/i18n'
-import { getMyStatus } from '@daily-status/core/statusService'
+import { listMyDay } from '@daily-status/core/statusService'
 import { today } from '@daily-status/core/supabase'
 import { holidayMap } from '@daily-status/core/holidayService'
 import { addDays, isWorkday } from '@daily-status/core/workdays'
@@ -160,8 +160,8 @@ export const useReminders = (userId: string | null, lang: Lang): void => {
     })
     // On every return to the app: the day may have changed, or notifications been allowed in the phone's settings.
     const check = (): void =>
-      void getMyStatus(userId, today())
-        .then((row) => markToday(userId, !!row))
+      void listMyDay(userId, today())
+        .then((rows) => markToday(userId, rows.length > 0))
         .catch(() => {})
         .then(sync)
     check()

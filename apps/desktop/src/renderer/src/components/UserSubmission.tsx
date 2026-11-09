@@ -1,16 +1,18 @@
 import { useCommentCounts } from '@daily-status/core/commentService'
 import { useEffect, useState, type FormEvent } from 'react'
 import type { DailyStatus, Profile } from '@daily-status/core/database.types'
-import { fmtDate } from '@daily-status/core/format'
+import { fmtDate, fmtHours, fmtStamp } from '@daily-status/core/format'
 import { useT, type Key } from '@daily-status/core/i18n'
 import { loadPlanBefore } from '@daily-status/core/richText'
 import { loadDraft, saveDraft } from '../lib/drafts'
 import { initialWriteLang, saveWriteLang } from '../lib/writeLang'
 import {
+  addStatus,
   canChange,
-  getMyStatus,
+  hoursLeft,
+  listMyDay,
   listMyStatuses,
-  saveStatus
+  updateStatus
 } from '@daily-status/core/statusService'
 import { today } from '@daily-status/core/supabase'
 import { useDayOff } from '@daily-status/core/holidayService'
@@ -24,17 +26,18 @@ import { Badge, Button, Card, Field, Input, Notice, PageHeader } from './ui'
 type Props = {
   profile: Profile
   date: string
-  editing: boolean
-  onChange: (date: string, editing: boolean) => void
+  // An update's id to change it, `new` to add another, or null.
+  editing: string | null
+  onChange: (date: string, editing: string | null) => void
 }
 
 export const UserSubmission = ({ profile, date, editing, onChange }: Props): React.JSX.Element => {
   const { t, locale } = useT()
-  const [row, reloadRow] = useLiveQuery(`mine:${profile.id}:${date}`, () =>
-    getMyStatus(profile.id, date)
+  const [day, reloadDay] = useLiveQuery(`mine:${profile.id}:${date}`, () =>
+    listMyDay(profile.id, date)
   )
   const [recent, reloadRecent] = useLiveQuery(`recent:${profile.id}`, () =>
-    listMyStatuses(profile.id, '', 5)
+    listMyStatuses(profile.id, '', 5).then(({ rows }) => rows)
   )
   const { off: dayOff, holiday } = useDayOff(date)
   const counts = useCommentCounts(
@@ -43,10 +46,14 @@ export const UserSubmission = ({ profile, date, editing, onChange }: Props): Rea
   )
   const [resets, setResets] = useState(0)
   const [saved, setSaved] = useState<string | null>(null)
-  const draftKey = `draft:${profile.id}:${date}`
-  // An unsaved draft means someone was mid-edit when they left: reopen the form rather than hide their words.
-  const formOpen = editing || !(row.state === 'ok' && row.data) || loadDraft(draftKey) !== null
-  const goTo = (d: string, edit = false): void => {
+  const rows = day.state === 'ok' ? day.data : []
+  const row = rows.find((r) => r.id === editing) ?? null
+  const locked = rows.length > 0 && !canChange(date, profile.role)
+  const draftKey = `draft:${profile.id}:${date}${row ? `:${row.id}` : ''}`
+  // An unsaved draft means someone was mid-way when they left: reopen the form rather than hide their words.
+  const formOpen =
+    !locked && (!!row || editing === 'new' || !rows.length || loadDraft(draftKey) !== null)
+  const goTo = (d: string, edit: string | null = null): void => {
     setSaved(null)
     onChange(d, edit)
   }
@@ -65,54 +72,78 @@ export const UserSubmission = ({ profile, date, editing, onChange }: Props): Rea
             />
           </Field>
         </div>
-        {dayOff && row.state === 'ok' && !row.data && (
+        {dayOff && day.state === 'ok' && !rows.length && (
           <Notice>{holiday ? t('holidayToday', { name: holiday }) : t('dayOff')}</Notice>
         )}
-        {row.state === 'loading' ? (
+        {day.state === 'loading' ? (
           <FormSkeleton />
-        ) : row.state === 'error' ? (
-          <Notice tone="bad">{t(row.message)}</Notice>
-        ) : row.data && !canChange(date, profile.role) ? (
+        ) : day.state === 'error' ? (
+          <Notice tone="bad">{t(day.message)}</Notice>
+        ) : (
           <div className="flex flex-col gap-3">
-            <Notice>{t('statusLocked')}</Notice>
-            <StatusCard status={row.data} />
-          </div>
-        ) : row.data && !formOpen ? (
-          // Submitted: the form is closed and empty; Edit reopens it filled with what was saved.
-          <div className="flex flex-col gap-3">
-            {saved === date && (
+            {locked && <Notice>{t('statusLocked')}</Notice>}
+            {saved === date && !formOpen && (
               <Notice tone="ok">{t('savedDone', { date: fmtDate(date, locale) })}</Notice>
             )}
-            <StatusCard
-              status={row.data}
-              actions={
-                <Button variant="ghost" onClick={() => goTo(date, true)}>
-                  {t('edit')}
+            {rows.length > 1 && (
+              <p className="text-sm font-medium text-fg-2">
+                {t('dayTotal', {
+                  n: rows.length,
+                  hours: fmtHours(
+                    rows.reduce((sum, r) => sum + r.hours_logged, 0),
+                    t
+                  )
+                })}
+              </p>
+            )}
+            {rows
+              .filter((r) => r.id !== row?.id)
+              .map((r) => (
+                <StatusCard
+                  key={r.id}
+                  status={r}
+                  actions={
+                    !locked &&
+                    !formOpen && (
+                      <Button variant="ghost" onClick={() => goTo(date, r.id)}>
+                        {t('edit')}
+                      </Button>
+                    )
+                  }
+                />
+              ))}
+            {!locked && !formOpen && (
+              <div>
+                <Button variant="ghost" onClick={() => goTo(date, 'new')}>
+                  {t('addAnotherUpdate')}
                 </Button>
-              }
-            />
+              </div>
+            )}
+            {formOpen && (
+              // Keyed so switching dates, saving or discarding a draft remounts the form with fresh values.
+              <SubmissionForm
+                key={`${date}:${row ? `${row.id}:${row.updated_at}` : `new:${rows.length}`}:${resets}`}
+                userId={profile.id}
+                date={date}
+                row={row}
+                first={!rows.length}
+                left={hoursLeft(rows, row?.id)}
+                onSaved={() => {
+                  reloadDay()
+                  reloadRecent()
+                  onChange(date, null)
+                  setSaved(date)
+                }}
+                onDiscard={() => setResets((n) => n + 1)}
+                {...(rows.length > 0 && {
+                  onCancel: () => {
+                    saveDraft(draftKey, null)
+                    goTo(date)
+                  }
+                })}
+              />
+            )}
           </div>
-        ) : (
-          // Keyed so switching dates, saving or discarding a draft remounts the form with fresh values.
-          <SubmissionForm
-            key={`${date}:${row.data?.updated_at ?? 'new'}:${resets}`}
-            userId={profile.id}
-            date={date}
-            row={row.data}
-            onSaved={() => {
-              reloadRow()
-              reloadRecent()
-              onChange(date, false)
-              setSaved(date)
-            }}
-            onDiscard={() => setResets((n) => n + 1)}
-            {...(row.data && {
-              onCancel: () => {
-                saveDraft(draftKey, null)
-                goTo(date)
-              }
-            })}
-          />
         )}
       </Card>
 
@@ -131,10 +162,10 @@ export const UserSubmission = ({ profile, date, editing, onChange }: Props): Rea
               status={s}
               comments={counts[s.id]}
               actions={
-                // The selected date's card above has its own Edit.
+                // The selected date's cards above have their own Edit.
                 s.date !== date &&
                 canChange(s.date, profile.role) && (
-                  <Button variant="ghost" onClick={() => goTo(s.date, true)}>
+                  <Button variant="ghost" onClick={() => goTo(s.date, s.id)}>
                     {t('edit')}
                   </Button>
                 )
@@ -155,6 +186,9 @@ type FormProps = {
   userId: string
   date: string
   row: DailyStatus | null
+  first: boolean
+  // Hours this day still has room for, not counting the update being changed.
+  left: number
   onSaved: () => void
   onDiscard: () => void
   onCancel?: () => void
@@ -164,13 +198,15 @@ const SubmissionForm = ({
   userId,
   date,
   row,
+  first,
+  left,
   onSaved,
   onDiscard,
   onCancel
 }: FormProps): React.JSX.Element => {
   const { t, locale, lang } = useT()
-  const key = `draft:${userId}:${date}`
-  const savedHours = String(row?.hours_logged ?? 8)
+  const key = `draft:${userId}:${date}${row ? `:${row.id}` : ''}`
+  const savedHours = String(row?.hours_logged ?? Math.max(0, Math.min(8, left)))
   const [draft] = useState(() => loadDraft(key))
   const [content, setContent] = useState<EditorChange>({ html: '', empty: true, edited: false })
   const [hours, setHours] = useState(draft?.hours ?? savedHours)
@@ -184,9 +220,11 @@ const SubmissionForm = ({
   const submit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
     if (content.empty) return setSave({ state: 'error', message: 'writeFirst' })
+    if (Number(hours) > left) return setSave({ state: 'error', message: 'errHoursDay' })
     setSave({ state: 'saving' })
     try {
-      await saveStatus(userId, { date, description: content.html, hours_logged: Number(hours) })
+      const entry = { description: content.html, hours_logged: Number(hours) }
+      await (row ? updateStatus(row.id, entry) : addStatus(userId, { ...entry, date }))
       saveDraft(key, null)
       onSaved()
     } catch (err) {
@@ -202,19 +240,14 @@ const SubmissionForm = ({
   return (
     <form onSubmit={submit} className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge
-          label={
-            row
-              ? t('submittedAt', {
-                  when: new Date(row.updated_at).toLocaleString(locale, {
-                    dateStyle: 'medium',
-                    timeStyle: 'short'
-                  })
-                })
-              : t('notSubmitted')
-          }
-          tone={row ? 'ok' : 'warn'}
-        />
+        {(row || first) && (
+          <Badge
+            label={
+              row ? t('submittedAt', { when: fmtStamp(row.updated_at, locale) }) : t('notSubmitted')
+            }
+            tone={row ? 'ok' : 'warn'}
+          />
+        )}
         {draft && (
           <>
             <Badge label={t('draftKept')} tone="info" />
