@@ -417,7 +417,8 @@ export const Toolbar = ({
           aria-label={t('formatting')}
           className="sticky top-0 z-10 border-b border-line bg-panel"
         >
-          <div className="flex items-center justify-between gap-0.5 overflow-x-auto px-1 py-1">
+          {/* Buttons narrow rather than scroll, so More is never pushed out of reach on small phones. */}
+          <div className="flex items-center justify-between gap-0.5 px-1 py-1 [&>button]:w-auto [&>button]:max-w-11 [&>button]:min-w-0 [&>button]:flex-1 [&>button]:shrink">
             {tools(PHONE_MAIN)}
             <Btn
               icon={Ellipsis}
