@@ -1,3 +1,4 @@
+import type { Paged } from '@daily-status/core/usePaged'
 import { LangPicker } from '@daily-status/editor/LangPicker'
 import { LoaderCircle } from 'lucide-react'
 import {
@@ -183,42 +184,60 @@ export const Stat = ({
   value,
   sub,
   tone = 'idle',
-  loading = false
+  loading = false,
+  onClick
 }: {
   label: string
   value: ReactNode
   sub?: string
   tone?: Tone
   loading?: boolean
-}): React.JSX.Element => (
-  <div className="rounded-xl border border-line bg-card p-4 shadow-soft">
-    <p className="text-xs font-medium text-fg-2">{label}</p>
-    <p className={`mt-2 text-2xl font-semibold tracking-tight tabular-nums ${TEXT[tone]}`}>
-      {loading ? <Skeleton className="h-[1lh] w-16" /> : value}
-    </p>
-    {sub ? (
-      <p className="mt-1 text-xs text-fg-3">{sub}</p>
-    ) : (
-      loading && <Skeleton className="mt-1.5 h-3 w-24" />
-    )}
-  </div>
-)
+  // Makes the whole card a button that opens the page behind the number.
+  onClick?: (() => void) | undefined
+}): React.JSX.Element => {
+  // Spans rather than paragraphs, since a button may only hold inline content.
+  const Box = onClick ? 'button' : 'div'
+  return (
+    <Box
+      {...(onClick && { type: 'button', onClick })}
+      className={`block rounded-xl border border-line bg-card p-4 text-left shadow-soft ${onClick ? 'transition-colors hover:bg-hover' : ''}`}
+    >
+      <span className="block text-xs font-medium text-fg-2">{label}</span>
+      <span
+        className={`mt-2 block text-2xl font-semibold tracking-tight tabular-nums ${TEXT[tone]}`}
+      >
+        {loading ? <Skeleton className="h-[1lh] w-16" /> : value}
+      </span>
+      {sub ? (
+        <span className="mt-1 block text-xs text-fg-3">{sub}</span>
+      ) : (
+        loading && <Skeleton className="mt-1.5 h-3 w-24" />
+      )}
+    </Box>
+  )
+}
 
+// Stays put while the page scrolls; `children` is whatever filters the page has. See .page-top in main.css.
 export const PageHeader = ({
   title,
   subtitle,
-  action
+  action,
+  children
 }: {
   title: string
   subtitle?: string
   action?: ReactNode
+  children?: ReactNode
 }): React.JSX.Element => (
-  <header className="mb-6 flex items-end justify-between gap-4">
-    <div>
-      <h1 className="text-xl font-semibold text-fg">{title}</h1>
-      {subtitle && <p className="mt-1 text-sm text-fg-2">{subtitle}</p>}
+  <header className="page-top sticky top-0 z-10 -mx-2 -mt-8 mb-6 flex flex-col gap-4 border-b border-line bg-canvas px-2 pt-8 pb-4">
+    <div className="flex items-end justify-between gap-4">
+      <div>
+        <h1 className="text-xl font-semibold text-fg">{title}</h1>
+        {subtitle && <p className="mt-1 text-sm text-fg-2">{subtitle}</p>}
+      </div>
+      {action}
     </div>
-    {action}
+    {children}
   </header>
 )
 
@@ -231,14 +250,14 @@ type TabsProps<K extends string> = {
 }
 
 // ARIA tabs: only the selected tab is in the Tab order, and arrow keys move between tabs.
-export const Tabs = <K extends string>({
+// The row alone, for a page that keeps it in its header; `id` ties it to the panel with `${id}-panel`.
+export const TabBar = <K extends string>({
+  id,
   label,
   tabs,
   value,
-  onChange,
-  children
-}: TabsProps<K>): React.JSX.Element => {
-  const id = useId()
+  onChange
+}: Omit<TabsProps<K>, 'children'> & { id: string }): React.JSX.Element => {
   const move = (e: KeyboardEvent<HTMLDivElement>): void => {
     const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key]
     if (!step) return
@@ -249,32 +268,45 @@ export const Tabs = <K extends string>({
     e.currentTarget.querySelectorAll<HTMLElement>('[role=tab]')[i]?.focus()
   }
   return (
+    <div
+      role="tablist"
+      aria-label={label}
+      onKeyDown={move}
+      className="flex gap-1 border-b border-line"
+    >
+      {tabs.map(([k, text]) => (
+        <button
+          key={k}
+          type="button"
+          role="tab"
+          id={`${id}-${k}`}
+          aria-selected={value === k}
+          aria-controls={`${id}-panel`}
+          tabIndex={value === k ? 0 : -1}
+          onClick={() => onChange(k)}
+          className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
+            value === k ? 'border-accent-fg text-fg' : 'border-transparent text-fg-2 hover:text-fg'
+          }`}
+        >
+          {text}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+export const Tabs = <K extends string>({
+  label,
+  tabs,
+  value,
+  onChange,
+  children
+}: TabsProps<K>): React.JSX.Element => {
+  const id = useId()
+  return (
     <>
-      <div
-        role="tablist"
-        aria-label={label}
-        onKeyDown={move}
-        className="mb-6 flex gap-1 border-b border-line"
-      >
-        {tabs.map(([k, text]) => (
-          <button
-            key={k}
-            type="button"
-            role="tab"
-            id={`${id}-${k}`}
-            aria-selected={value === k}
-            aria-controls={`${id}-panel`}
-            tabIndex={value === k ? 0 : -1}
-            onClick={() => onChange(k)}
-            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
-              value === k
-                ? 'border-accent-fg text-fg'
-                : 'border-transparent text-fg-2 hover:text-fg'
-            }`}
-          >
-            {text}
-          </button>
-        ))}
+      <div className="mb-6">
+        <TabBar id={id} label={label} tabs={tabs} value={value} onChange={onChange} />
       </div>
       <div role="tabpanel" id={`${id}-panel`} aria-labelledby={`${id}-${value}`}>
         {children}
@@ -322,6 +354,22 @@ export const Loading = ({
 }
 
 // An empty list: a soft icon, what's missing, and what to do about it.
+export const LoadMore = ({
+  page
+}: {
+  page: Pick<Paged<unknown>, 'more' | 'busy' | 'failed' | 'older'>
+}): React.JSX.Element | null => {
+  const { t } = useT()
+  return page.more || page.failed ? (
+    <div className="flex flex-col items-start gap-3">
+      {page.failed && <Notice tone="bad">{t(page.failed)}</Notice>}
+      <Button variant="ghost" busy={page.busy} onClick={page.older}>
+        {t(page.failed ? 'tryAgain' : 'showOlder')}
+      </Button>
+    </div>
+  ) : null
+}
+
 export const Empty = ({
   icon,
   title,

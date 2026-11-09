@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { Inbox } from 'lucide-react'
 import { useCommentCounts } from '@daily-status/core/commentService'
 import { getAllTeamStatuses, getTeamSummaryMetrics } from '@daily-status/core/adminService'
@@ -7,9 +8,10 @@ import { useT } from '@daily-status/core/i18n'
 import { today } from '@daily-status/core/supabase'
 import { useDebounced } from '@daily-status/core/useDebounced'
 import { useLiveQuery } from '@daily-status/core/live'
+import { usePaged } from '@daily-status/core/usePaged'
 import { CardsSkeleton, PeopleSkeleton } from '../Skeletons'
 import { StatusCard } from '../StatusCard'
-import { Card, Field, Input, Notice, Select, Stat, Empty } from '../ui'
+import { LoadMore, Card, Field, Input, Notice, Select, Stat, Empty } from '../ui'
 
 export type FeedFilters = { date: string; userId: string; search: string }
 
@@ -18,6 +20,7 @@ type Props = {
   onFilter: (p: Partial<FeedFilters>) => void
   dayLabel: string
   nonce: number
+  slot: HTMLElement | null
   onOpenPerson: (id: string) => void
 }
 
@@ -26,6 +29,7 @@ export const TeamFeed = ({
   onFilter,
   dayLabel,
   nonce,
+  slot,
   onOpenPerson
 }: Props): React.JSX.Element => {
   const { t } = useT()
@@ -33,11 +37,14 @@ export const TeamFeed = ({
   // Metrics need a single day; with the date filter cleared they fall back to today.
   const day = f.date || today()
   const [metrics] = useLiveQuery(`metrics:${day}:${nonce}`, () => getTeamSummaryMetrics(day))
-  const [feed] = useLiveQuery(`feed:${JSON.stringify(filters)}:${nonce}`, () =>
-    getAllTeamStatuses(filters)
+  const [feed] = usePaged(`feed:${JSON.stringify(filters)}:${nonce}`, (limit, offset) =>
+    getAllTeamStatuses(filters, limit, offset)
   )
   const { off: dayOff, holiday } = useDayOff(day)
-  const counts = useCommentCounts('status', feed.state === 'ok' ? feed.data.map((s) => s.id) : [])
+  const counts = useCommentCounts(
+    'status',
+    feed.state === 'ok' ? feed.data.rows.map((s) => s.id) : []
+  )
   const m = metrics.state === 'ok' ? metrics.data : null
 
   return (
@@ -69,36 +76,38 @@ export const TeamFeed = ({
         />
       </div>
 
-      <Card className="mb-6">
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(12rem,1fr))] gap-4">
-          <Field label={t('date')} hint={t('dateHint')}>
-            <Input
-              type="date"
-              value={f.date}
-              max={today()}
-              onChange={(e) => onFilter({ date: e.target.value })}
-            />
-          </Field>
-          <Field label={t('roleMember')}>
-            <Select value={f.userId} onChange={(e) => onFilter({ userId: e.target.value })}>
-              <option value="">{t('allMembers')}</option>
-              {m?.members.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {nameOf(p)}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label={t('search')}>
-            <Input
-              type="search"
-              value={f.search}
-              onChange={(e) => onFilter({ search: e.target.value })}
-              placeholder={t('adminSearch')}
-            />
-          </Field>
-        </div>
-      </Card>
+      {slot &&
+        createPortal(
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(12rem,1fr))] gap-4">
+            <Field label={t('date')} hint={t('dateHint')}>
+              <Input
+                type="date"
+                value={f.date}
+                max={today()}
+                onChange={(e) => onFilter({ date: e.target.value })}
+              />
+            </Field>
+            <Field label={t('roleStaff')}>
+              <Select value={f.userId} onChange={(e) => onFilter({ userId: e.target.value })}>
+                <option value="">{t('allMembers')}</option>
+                {m?.members.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {nameOf(p)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label={t('search')}>
+              <Input
+                type="search"
+                value={f.search}
+                onChange={(e) => onFilter({ search: e.target.value })}
+                placeholder={t('adminSearch')}
+              />
+            </Field>
+          </div>,
+          slot
+        )}
 
       {/* Side by side while the feed gets 28rem; stacks at large text sizes, since rem grows with them. */}
       <div className="flex flex-wrap items-start gap-6">
@@ -107,10 +116,13 @@ export const TeamFeed = ({
             <CardsSkeleton author />
           ) : feed.state === 'error' ? (
             <Notice tone="bad">{t(feed.message)}</Notice>
-          ) : feed.data.length ? (
-            feed.data.map((s) => (
-              <StatusCard key={s.id} status={s} author={s.profile} comments={counts[s.id]} />
-            ))
+          ) : feed.data.rows.length ? (
+            <>
+              {feed.data.rows.map((s) => (
+                <StatusCard key={s.id} status={s} author={s.profile} comments={counts[s.id]} />
+              ))}
+              <LoadMore page={feed.data} />
+            </>
           ) : (
             <Empty icon={<Inbox className="size-7" />} title={t('noFeed')} hint={t('noFeedHint')} />
           )}
