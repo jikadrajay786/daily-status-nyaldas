@@ -1,10 +1,21 @@
-import { app, shell, BrowserWindow, ipcMain, nativeTheme, Notification } from 'electron'
-import { readFileSync, writeFileSync } from 'fs'
+import {
+  app,
+  shell,
+  BrowserWindow,
+  clipboard,
+  ipcMain,
+  nativeTheme,
+  Notification,
+  safeStorage,
+  session,
+  ShareMenu
+} from 'electron'
+import { readFileSync, renameSync, rmSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { CANVAS, NATIVE_SCHEME, isTheme, type Theme } from '../shared/appearance'
-import { IPC, type SizeStep } from '../shared/ipc'
+import { IPC, SHARE_VIA, type ShareVia, type SizeStep } from '../shared/ipc'
 
 // Main keeps its own copy of the theme so the first frame of the next launch already has the right background.
 const themeFile = (): string => join(app.getPath('userData'), 'appearance.json')
@@ -28,6 +39,33 @@ const syncBackground = (): void =>
 const applyTheme = (): void => {
   nativeTheme.themeSource = NATIVE_SCHEME[theme]
   syncBackground()
+}
+
+// The sign-in session, encrypted with the OS keychain so other programs and backups can't reuse it.
+const sessionFile = (): string => join(app.getPath('userData'), 'session.bin')
+const SESSION_KEY = /^sb-[\w-]{1,100}$/
+let saved: Record<string, string> | undefined
+
+const loadSession = (): Record<string, string> => {
+  if (saved) return saved
+  try {
+    saved = JSON.parse(safeStorage.decryptString(readFileSync(sessionFile()))) as Record<
+      string,
+      string
+    >
+  } catch {
+    // No file yet, or the keychain entry is gone: signed out, not a crash.
+    saved = {}
+  }
+  return saved
+}
+
+const saveSession = (next: Record<string, string>): void => {
+  saved = next
+  const tmp = `${sessionFile()}.tmp`
+  // Rename, so a crash mid-write can't sign someone out.
+  writeFileSync(tmp, safeStorage.encryptString(JSON.stringify(next)), { mode: 0o600 })
+  renameSync(tmp, sessionFile())
 }
 
 function createWindow(): void {
@@ -102,6 +140,8 @@ app.on('second-instance', () => {
   win?.focus()
 })
 
+let shown: Notification[] = []
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
@@ -110,8 +150,8 @@ app.whenReady().then(() => {
   if (is.dev) app.dock?.setIcon(icon)
   theme = loadTheme()
   applyTheme()
-  // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
+  // Must match electron-builder's appId, or Windows shows notifications under the wrong name or not at all.
+  electronApp.setAppUserModelId('com.electron.app')
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -120,7 +160,38 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
+  // The app uses no camera, microphone, location or web notifications (alerts go through main).
+  session.defaultSession.setPermissionRequestHandler((_, __, cb) => cb(false))
+  session.defaultSession.setPermissionCheckHandler(() => false)
+
   // IPC handlers. Renderer input is untrusted, so validate it before use.
+  ipcMain.handle(IPC.sessionGet, (_, key: unknown) =>
+    typeof key === 'string' && SESSION_KEY.test(key) && safeStorage.isEncryptionAvailable()
+      ? (loadSession()[key] ?? null)
+      : null
+  )
+  ipcMain.handle(IPC.sessionSet, (_, key: unknown, value: unknown) => {
+    if (
+      typeof key !== 'string' ||
+      !SESSION_KEY.test(key) ||
+      typeof value !== 'string' ||
+      value.length > 100_000 ||
+      !safeStorage.isEncryptionAvailable()
+    )
+      return false
+    saveSession({ ...loadSession(), [key]: value })
+    return true
+  })
+  ipcMain.handle(IPC.sessionRemove, (_, key: unknown) => {
+    if (typeof key !== 'string' || !safeStorage.isEncryptionAvailable()) return
+    const { [key]: gone, ...rest } = loadSession()
+    if (gone === undefined) return
+    if (Object.keys(rest).length) saveSession(rest)
+    else {
+      saved = {}
+      rmSync(sessionFile(), { force: true })
+    }
+  })
   ipcMain.handle(IPC.setTheme, (_, t: unknown) => {
     if (!isTheme(t) || t === theme) return
     theme = t
@@ -132,11 +203,53 @@ app.whenReady().then(() => {
   nativeTheme.on('updated', syncBackground)
   ipcMain.handle(IPC.ping, () => 'pong')
   ipcMain.handle(IPC.getAppVersion, () => app.getVersion())
-  ipcMain.handle(IPC.notify, (_, title: unknown, body: unknown) =>
-    typeof title === 'string' && typeof body === 'string' && Notification.isSupported()
-      ? (new Notification({ title, body }).show(), true)
-      : false
-  )
+  ipcMain.handle(IPC.notify, (e, title: unknown, body: unknown, open: unknown) => {
+    if (typeof title !== 'string' || typeof body !== 'string' || !Notification.isSupported())
+      return false
+    const n = new Notification({ title: title.slice(0, 200), body: body.slice(0, 500) })
+    if (
+      typeof open === 'string' &&
+      /^(status|task|leave|leaveRequests|team):[0-9a-f-]{36}$/.test(open)
+    )
+      n.on('click', () => {
+        const win = BrowserWindow.fromWebContents(e.sender)
+        if (!win || win.isDestroyed()) return
+        if (win.isMinimized()) win.restore()
+        win.show()
+        win.focus()
+        e.sender.send(IPC.notifyClick, open)
+      })
+    // Electron drops a notification's click handler once nothing references it, so the latest few are kept.
+    shown = [...shown.slice(-19), n]
+    n.show()
+    return true
+  })
+  ipcMain.handle(IPC.share, async (e, via: unknown, text: unknown) => {
+    if (
+      !SHARE_VIA.includes(via as ShareVia) ||
+      typeof text !== 'string' ||
+      !text ||
+      text.length > 20_000
+    )
+      return false
+    const open = (url: string): Promise<boolean> =>
+      shell.openExternal(url).then(
+        () => true,
+        () => false
+      )
+    const body = encodeURIComponent(text)
+    if (via === 'system') {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      if (process.platform !== 'darwin' || !win) return false
+      new ShareMenu({ texts: [text] }).popup({ window: win })
+      return true
+    }
+    if (via === 'whatsapp') return open(`https://wa.me/?text=${body}`)
+    if (via === 'email') return open(`mailto:?body=${body}`)
+    clipboard.writeText(text)
+    // Slack can't take pre-filled text, so the message waits on the clipboard while Slack opens.
+    return via === 'copy' || (await open('slack://open')) || open('https://app.slack.com/client')
+  })
 
   createWindow()
 

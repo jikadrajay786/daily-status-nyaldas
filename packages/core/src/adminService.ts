@@ -1,12 +1,12 @@
-import type { DailyStatus, Profile } from './database.types'
-import { db, searchTerm, today, unwrap } from './supabase'
+import type { DailyStatus, Profile, Role } from './database.types'
+import { collect, PAGE, pageOf, type Page, db, searchTerm, today, unwrap } from './supabase'
 import { holidayMap } from './holidayService'
 import {
   addDays,
   daysBetween,
   dayState,
   isWorkday,
-  localDay,
+  reportsFrom,
   streakOf,
   type DayState
 } from './workdays'
@@ -20,47 +20,79 @@ export type TeamMetrics = {
   hours: number
 }
 
-// Empty filter values mean "any"; RLS already limits non-admins to their own rows. Admins don't report, so their rows stay out.
-export const getAllTeamStatuses = async ({ date, userId, search = '' }: TeamFilters = {}): Promise<
-  TeamStatus[]
-> => {
+const myId = async (): Promise<string> => (await db().auth.getSession()).data.session?.user.id ?? ''
+
+// Empty filter values mean "any"; RLS limits store and agency managers to their staff plus themselves, and their own
+// updates aren't part of the team they look after. Admins don't report, so their rows stay out.
+export const getAllTeamStatuses = async (
+  { date, userId, search = '' }: TeamFilters = {},
+  limit = PAGE,
+  offset = 0
+): Promise<Page<TeamStatus>> => {
   const q = searchTerm(search)
   const ids = q
     ? unwrap(
         await db().from('profiles').select('id').or(`full_name.ilike.%${q}%,email.ilike.%${q}%`)
       ).map((p) => p.id)
     : []
-  let req = db()
-    .from('daily_statuses')
-    .select('*, profile:profiles!inner(full_name, email, role)')
-    .eq('profile.role', 'user')
-  if (date) req = req.eq('date', date)
-  if (userId) req = req.eq('user_id', userId)
-  if (q)
-    req = req.or(
-      [
-        `description_text.ilike.%${q}%`,
-        ...(ids.length ? [`user_id.in.(${ids.join(',')})`] : [])
-      ].join(',')
-    )
-  return unwrap(
-    await req
-      .order('date', { ascending: false })
-      .order('updated_at', { ascending: false })
-      .limit(500)
+  const me = await myId()
+  return pageOf(
+    (from, to) => {
+      let req = db()
+        .from('daily_statuses')
+        .select('*, profile:profiles!inner(full_name, email, role)')
+        .neq('profile.role', 'admin')
+        .neq('user_id', me)
+      if (date) req = req.eq('date', date)
+      if (userId) req = req.eq('user_id', userId)
+      if (q)
+        req = req.or(
+          [
+            `description_text.ilike.%${q}%`,
+            ...(ids.length ? [`user_id.in.(${ids.join(',')})`] : [])
+          ].join(',')
+        )
+      return req
+        .order('date', { ascending: false })
+        .order('updated_at', { ascending: false })
+        .order('id')
+        .range(from, to)
+    },
+    limit,
+    offset
   )
 }
 
-// Admins manage the team rather than belong to it: no counts, no missing list, no People entry.
-const staff = async (): Promise<Profile[]> =>
-  unwrap(await db().from('profiles').select().eq('role', 'user').order('full_name'))
+// Admins manage the team rather than belong to it: no counts, no missing list. Managers report like staff.
+export const listTeamMembers = async (): Promise<Profile[]> => {
+  const me = await myId()
+  return (
+    await collect((from, to) =>
+      db()
+        .from('profiles')
+        .select()
+        .neq('role', 'admin')
+        .neq('id', me)
+        .order('full_name')
+        .order('id')
+        .range(from, to)
+    )
+  ).rows
+}
 
 const teamDay = async (
   date: string
 ): Promise<{ members: Profile[]; rows: Pick<DailyStatus, 'user_id' | 'hours_logged'>[] }> => {
   const [members, rows] = await Promise.all([
-    staff(),
-    db().from('daily_statuses').select('user_id, hours_logged').eq('date', date).then(unwrap)
+    listTeamMembers(),
+    collect((from, to) =>
+      db()
+        .from('daily_statuses')
+        .select('user_id, hours_logged')
+        .eq('date', date)
+        .order('user_id')
+        .range(from, to)
+    ).then((r) => r.rows)
   ])
   const ids = new Set(members.map((m) => m.id))
   return { members, rows: rows.filter((r) => ids.has(r.user_id)) }
@@ -89,47 +121,77 @@ export const getTeamSummaryMetrics = async (targetDate: string): Promise<TeamMet
   return {
     members,
     missing: missingFrom(off, members, rows),
-    submitted: rows.length,
+    submitted: new Set(rows.map((r) => r.user_id)).size,
     hours: rows.reduce((sum, r) => sum + r.hours_logged, 0)
   }
 }
 
 export type DirectoryEntry = Profile & {
+  // Days with an update; `updates` counts the updates themselves.
   submissions: number
+  updates: number
   lastDate: string | null
   totalHours: number
 }
 
 // Two small queries merged here: PostgREST can't embed a view without a foreign key.
+// Admins are listed too, or their role could never be changed.
 export const getUserDirectoryWithStats = async (): Promise<DirectoryEntry[]> => {
-  const [people, stats] = await Promise.all([
-    staff(),
-    db().from('daily_status_user_stats').select().then(unwrap)
+  const [people, stats, me] = await Promise.all([
+    collect((from, to) =>
+      db().from('profiles').select().order('full_name').order('id').range(from, to)
+    ).then((r) => r.rows),
+    collect((from, to) =>
+      db().from('daily_status_user_stats').select().order('user_id').range(from, to)
+    ).then((r) => r.rows),
+    myId()
   ])
   const by = new Map(stats.map((s) => [s.user_id, s]))
-  return people.map((p) => {
-    const s = by.get(p.id)
-    return {
-      ...p,
-      submissions: s?.submissions ?? 0,
-      lastDate: s?.last_date ?? null,
-      totalHours: s?.total_hours ?? 0
-    }
-  })
+  // A store or agency manager sees their staff, not themselves.
+  return people
+    .filter((p) => p.id !== me || p.role === 'admin')
+    .map((p) => {
+      const s = by.get(p.id)
+      return {
+        ...p,
+        submissions: s?.submissions ?? 0,
+        updates: s?.updates ?? 0,
+        lastDate: s?.last_date ?? null,
+        totalHours: s?.total_hours ?? 0
+      }
+    })
 }
 
-export const getIndividualUserHistory = async (
+export const setUserRole = async (id: string, role: Role): Promise<void> =>
+  unwrap(await db().rpc('set_user_role', { p_user: id, p_role: role }))
+
+export const setUserManager = async (id: string, manager: string | null): Promise<void> =>
+  unwrap(await db().rpc('set_user_manager', { p_user: id, p_manager: manager }))
+
+export const getIndividualUserHistory = (
   userId: string,
   startDate?: string,
   endDate?: string,
-  search = ''
-): Promise<DailyStatus[]> => {
+  search = '',
+  limit = PAGE,
+  offset = 0
+): Promise<Page<DailyStatus>> => {
   const q = searchTerm(search)
-  let req = db().from('daily_statuses').select().eq('user_id', userId)
-  if (startDate) req = req.gte('date', startDate)
-  if (endDate) req = req.lte('date', endDate)
-  if (q) req = req.ilike('description_text', `%${q}%`)
-  return unwrap(await req.order('date', { ascending: false }).limit(500))
+  return pageOf(
+    (from, to) => {
+      let req = db().from('daily_statuses').select('*', { count: 'exact' }).eq('user_id', userId)
+      if (startDate) req = req.gte('date', startDate)
+      if (endDate) req = req.lte('date', endDate)
+      if (q) req = req.ilike('description_text', `%${q}%`)
+      return req
+        .order('date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .order('id')
+        .range(from, to)
+    },
+    limit,
+    offset
+  )
 }
 
 export type UserMetrics = {
@@ -157,14 +219,19 @@ export const getIndividualUserMetrics = async (
       .lte('date', endDate)
       .limit(1000)
       .then(unwrap),
-    db().from('profiles').select('created_at').eq('id', userId).single().then(unwrap),
+    db()
+      .from('profiles')
+      .select('created_at, reports_since')
+      .eq('id', userId)
+      .single()
+      .then(unwrap),
     holidayMap(startDate, endDate)
   ])
   const done = new Set(rows.map((r) => r.date))
   const now = today()
   const days = daysBetween(startDate, endDate).map((d): [string, DayState] => [
     d,
-    dayState(d, done, localDay(profile.created_at), now, off)
+    dayState(d, done, reportsFrom(profile), now, off)
   ])
   const counted = days.filter(([d, s]) => isWorkday(d, off) && (s === 'done' || s === 'missed'))
   return {
@@ -186,7 +253,7 @@ export const getUserStreak = async (userId: string): Promise<number> => {
       .select('date')
       .eq('user_id', userId)
       .order('date', { ascending: false })
-      .limit(400)
+      .limit(1000)
       .then(unwrap),
     holidayMap(addDays(now, -400), now)
   ])

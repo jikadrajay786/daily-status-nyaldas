@@ -5,7 +5,8 @@ import { useT, type Key } from '@daily-status/core/i18n'
 import { loadPlanBefore } from '@daily-status/core/richText'
 import { getProfile, getStatus, updateStatus } from '@daily-status/core/statusService'
 import { errMsg } from '@daily-status/core/useQuery'
-import { router, useLocalSearchParams } from 'expo-router'
+import { Redirect, router, useLocalSearchParams } from 'expo-router'
+import { useProfile } from '@/lib/profile'
 import { useMemo, useRef, useState, type RefObject } from 'react'
 import { useWindowDimensions, type ScrollViewInstance } from 'react-native'
 import { Box } from '@/components/gs/box'
@@ -29,6 +30,11 @@ type Loaded = { status: DailyStatus; name: string } | null
 
 // Admin correction of someone else's update. The date stays fixed, so it can't collide with another day.
 export default function EditStatus(): React.JSX.Element {
+  // Store and agency managers read their staff's updates but can't change them.
+  return useProfile().role === 'admin' ? <EditForm /> : <Redirect href="/team" />
+}
+
+function EditForm(): React.JSX.Element {
   const { t, locale } = useT()
   const id = uuidParam(useLocalSearchParams<{ statusId: string }>().statusId)
   const scroll = useRef<ScrollViewInstance>(null)
@@ -130,10 +136,11 @@ const Form = ({
           typing={fit.typing}
           minHeight={fit.rest}
           onContentHeight={fit.onContentHeight}
-          // At rest a drag on the editor scrolls the screen; only while typing does it scroll the writing area.
+          onOverflow={fit.onOverflow}
+          // At rest a drag on the editor scrolls the screen; it scrolls the writing area only once the text has outgrown it.
           dom={{
-            nestedScrollEnabled: fit.typing,
-            scrollEnabled: fit.typing,
+            nestedScrollEnabled: fit.scrollInside,
+            scrollEnabled: fit.scrollInside,
             style: { height: fit.height }
           }}
         />

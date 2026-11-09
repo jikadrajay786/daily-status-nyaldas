@@ -1,12 +1,19 @@
 import { Check, X } from 'lucide-react'
 import { useState, type FormEvent, type KeyboardEvent } from 'react'
+import type { Role } from '@daily-status/core/database.types'
 import { initials, nameOf } from '@daily-status/core/format'
 import { useT } from '@daily-status/core/i18n'
 import { today } from '@daily-status/core/supabase'
-import { dueFromDay, listPeople, type Assignee } from '@daily-status/core/taskService'
+import {
+  dueFromDay,
+  listPeople,
+  type Assignee,
+  type SharedTask
+} from '@daily-status/core/taskService'
 import { useLiveQuery } from '@daily-status/core/live'
 import { useCreateTask } from '@daily-status/core/useTasks'
 import { Avatar, Button, Card, Field, Input, Notice, Skeleton, TextArea } from '../ui'
+import { ShareButton } from './ShareButton'
 
 const EMPTY = { title: '', description: '', due: '' }
 const SUBMIT_KEYS = /Mac/.test(navigator.userAgent) ? '⌘ Enter' : 'Ctrl Enter'
@@ -128,19 +135,29 @@ const PeopleList = ({
   )
 }
 
-export const TaskForm = ({ onCreated }: { onCreated: () => void }): React.JSX.Element => {
+export const TaskForm = ({
+  role,
+  open,
+  onCreated
+}: {
+  role: Role
+  // Stays mounted while closed, so what's typed survives closing.
+  open: boolean
+  onCreated: () => void
+}): React.JSX.Element | null => {
   const { t } = useT()
-  const [people] = useLiveQuery('task-people', listPeople)
+  const [people] = useLiveQuery(`task-people:${role}`, () => listPeople(role))
   const { run, busy, error } = useCreateTask()
   const [form, setForm] = useState(EMPTY)
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
-  const [done, setDone] = useState(false)
+  const [created, setCreated] = useState<SharedTask | null>(null)
+  if (!open && created) setCreated(null)
   const set = (k: keyof typeof EMPTY) => (e: { currentTarget: { value: string } }) =>
     setForm({ ...form, [k]: e.currentTarget.value })
 
   const submit = async (e: FormEvent): Promise<void> => {
     e.preventDefault()
-    setDone(false)
+    setCreated(null)
     const res = await run({
       title: form.title,
       description: form.description,
@@ -150,15 +167,20 @@ export const TaskForm = ({ onCreated }: { onCreated: () => void }): React.JSX.El
     if (!res) return
     setForm(EMPTY)
     setPicked(new Set())
-    setDone(true)
+    // The live board catches up a moment later; the picker already knows who it went to.
+    setCreated({
+      ...res,
+      assignees: people.state === 'ok' ? people.data.filter((p) => picked.has(p.id)) : []
+    })
     onCreated()
   }
 
-  return (
+  return open ? (
     <Card title={t('newTask')}>
       <form onSubmit={submit} onKeyDown={submitOnShortcut} className="flex flex-col gap-4">
         <Field label={t('taskTitle')}>
           <Input
+            autoFocus
             required
             maxLength={200}
             value={form.title}
@@ -188,7 +210,12 @@ export const TaskForm = ({ onCreated }: { onCreated: () => void }): React.JSX.El
           )}
         </fieldset>
         {error && <Notice tone="bad">{t(error)}</Notice>}
-        {done && <Notice tone="ok">{t('taskCreated')}</Notice>}
+        {created && (
+          <div className="flex flex-wrap items-center gap-3">
+            <Notice tone="ok">{t('taskCreated')}</Notice>
+            <ShareButton task={created} />
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" busy={busy}>
             {t('taskCreate')}
@@ -197,5 +224,5 @@ export const TaskForm = ({ onCreated }: { onCreated: () => void }): React.JSX.El
         </div>
       </form>
     </Card>
-  )
+  ) : null
 }

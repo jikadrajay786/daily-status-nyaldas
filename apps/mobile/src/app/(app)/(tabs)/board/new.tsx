@@ -9,10 +9,12 @@ import { useState } from 'react'
 import { DateField } from '@/components/DateField'
 import { PeoplePicker } from '@/components/PeoplePicker'
 import { Button, Field, Loading, Notice, Screen, Skeleton } from '@/components/ui'
+import { useProfile } from '@/lib/profile'
 
 export default function NewTask(): React.JSX.Element {
   const { t } = useT()
-  const [people] = useLiveQuery('task-people', listPeople)
+  const { role } = useProfile()
+  const [people] = useLiveQuery(`task-people:${role}`, () => listPeople(role))
   const { run, busy, error } = useCreateTask()
   const [title, setTitle] = useState('')
   const [details, setDetails] = useState('')
@@ -28,7 +30,7 @@ export default function NewTask(): React.JSX.Element {
     })
     if (!res) return
     bumpLive()
-    router.dismissTo({ pathname: '/board', params: { created: '1' } })
+    router.dismissTo({ pathname: '/board', params: { created: res.id } })
   }
 
   return (

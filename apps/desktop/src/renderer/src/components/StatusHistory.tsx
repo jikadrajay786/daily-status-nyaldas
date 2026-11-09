@@ -7,22 +7,25 @@ import type { DailyStatus, Profile } from '@daily-status/core/database.types'
 import { useT, type Key } from '@daily-status/core/i18n'
 import { canChange, deleteStatus, listMyStatuses } from '@daily-status/core/statusService'
 import { useDebounced } from '@daily-status/core/useDebounced'
-import { useLiveQuery } from '@daily-status/core/live'
+import { usePaged } from '@daily-status/core/usePaged'
 import { errMsg } from '@daily-status/core/useQuery'
 import { CardsSkeleton } from './Skeletons'
 import { StatusCard } from './StatusCard'
-import { Button, Input, Notice, PageHeader, Empty } from './ui'
+import { LoadMore, Button, Input, Notice, PageHeader, Empty } from './ui'
 
-type Props = { profile: Profile; onEdit: (date: string) => void }
+type Props = { profile: Profile; onEdit: (date: string, id?: string) => void }
 
 export const StatusHistory = ({ profile, onEdit }: Props): React.JSX.Element => {
   const { t } = useT()
   const [search, setSearch] = useState('')
   const q = useDebounced(search)
-  const [list, reload] = useLiveQuery(`history:${profile.id}:${q}`, () =>
-    listMyStatuses(profile.id, q)
+  const [list, reload] = usePaged(`history:${profile.id}:${q}`, (limit, offset) =>
+    listMyStatuses(profile.id, q, limit, offset)
   )
-  const counts = useCommentCounts('status', list.state === 'ok' ? list.data.map((s) => s.id) : [])
+  const counts = useCommentCounts(
+    'status',
+    list.state === 'ok' ? list.data.rows.map((s) => s.id) : []
+  )
   const [confirming, setConfirming] = useState<string>()
   const [error, setError] = useState<Key>()
 
@@ -43,17 +46,18 @@ export const StatusHistory = ({ profile, onEdit }: Props): React.JSX.Element => 
       <PageHeader
         title={t('navHistory')}
         {...(list.state === 'ok' && {
-          subtitle: t(q ? 'matchCount' : 'totalCount', { n: list.data.length })
+          subtitle: t(q ? 'matchCount' : 'totalCount', { n: list.data.total })
         })}
-      />
-      <div className="mb-5 max-w-sm">
-        <Input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t('historySearch')}
-        />
-      </div>
+      >
+        <div className="max-w-sm">
+          <Input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('historySearch')}
+          />
+        </div>
+      </PageHeader>
       {error && (
         <div className="mb-4">
           <Notice tone="bad">{t(error)}</Notice>
@@ -63,9 +67,9 @@ export const StatusHistory = ({ profile, onEdit }: Props): React.JSX.Element => 
         <CardsSkeleton />
       ) : list.state === 'error' ? (
         <Notice tone="bad">{t(list.message)}</Notice>
-      ) : list.data.length ? (
+      ) : list.data.rows.length ? (
         <div className="flex flex-col gap-3">
-          {list.data.map((s) => (
+          {list.data.rows.map((s) => (
             <StatusCard
               key={s.id}
               status={s}
@@ -90,7 +94,7 @@ export const StatusHistory = ({ profile, onEdit }: Props): React.JSX.Element => 
                   </>
                 ) : (
                   <>
-                    <Button variant="ghost" onClick={() => onEdit(s.date)}>
+                    <Button variant="ghost" onClick={() => onEdit(s.date, s.id)}>
                       {t('edit')}
                     </Button>
                     <Button variant="danger" onClick={() => setConfirming(s.id)}>
@@ -101,6 +105,7 @@ export const StatusHistory = ({ profile, onEdit }: Props): React.JSX.Element => 
               }
             />
           ))}
+          <LoadMore page={list.data} />
         </div>
       ) : (
         <Empty

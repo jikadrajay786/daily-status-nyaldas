@@ -4,7 +4,11 @@ import { Stack } from 'expo-router'
 import { AppLockGate } from '@/components/AppLock'
 import { QuickCommentProvider } from '@/components/QuickComment'
 import { useAppLock } from '@/lib/appLock'
+import { useCommentReply } from '@/lib/commentReply'
+import { useNotificationTaps } from '@/lib/notifications'
+import { useOnePhone } from '@/lib/onePhone'
 import { useProfile } from '@/lib/profile'
+import { usePush } from '@/lib/push'
 import { useReminders } from '@/lib/reminder'
 
 // The tabs, with details screens pushed over them; the lock covers both.
@@ -12,6 +16,10 @@ export default function AppLayout(): React.JSX.Element {
   const { t, lang } = useT()
   const { id, role } = useProfile()
   useReminders(role !== 'admin' ? id : null, lang)
+  usePush(id, lang)
+  useCommentReply(id, lang)
+  useOnePhone(id)
+  useNotificationTaps()
   useRealtimeSync(id)
   const lock = useAppLock(id)
   return (
@@ -20,6 +28,10 @@ export default function AppLayout(): React.JSX.Element {
         <Stack screenOptions={{ headerBackTitle: t('back') }}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="details/[kind]/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="appearance" options={{ title: t('navAppearance') }} />
+          <Stack.Screen name="leave/index" options={{ title: t('leaveMine') }} />
+          <Stack.Screen name="leave/new" options={{ title: t('leaveAsk') }} />
+          <Stack.Screen name="leave/requests" options={{ title: t('navLeaveRequests') }} />
         </Stack>
       </QuickCommentProvider>
     </AppLockGate>

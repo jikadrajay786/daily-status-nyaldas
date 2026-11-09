@@ -4,8 +4,12 @@ import type { Database, Task } from '../src/database.types'
 import { initSupabase } from '../src/supabase'
 import {
   createTask,
-  listAllTasks,
-  listMyTasks,
+  getTask,
+  listDoneBoardTasks,
+  listDoneMyTasks,
+  listOpenBoardTasks,
+  listOpenMyTasks,
+  listPeople,
   TASK_STATUSES,
   updateTaskStatus
 } from '../src/taskService'
@@ -25,7 +29,7 @@ if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(url) || !anon || !service
 const root = createClient<Database>(url, service, { auth: { persistSession: false } })
 const run = Date.now().toString(36)
 const password = `pw-${run}-${Math.random().toString(36).slice(2)}`
-const people = { admin: '', asha: '', ravi: '', meena: '' }
+const people = { admin: '', boss: '', asha: '', ravi: '', meena: '' }
 type Who = keyof typeof people
 
 const memory = (): {
@@ -70,12 +74,22 @@ beforeAll(async () => {
     })
     if (error) throw error
     people[who] = data.user.id
+    // Sign-ups wait for an admin (approve_signup); these accounts skip the queue.
+    const made = await root
+      .from('profiles')
+      .upsert({ id: data.user.id, email: data.user.email, full_name: who } as never)
+    if (made.error) throw made.error
   }
-  const { error } = await root
-    .from('profiles')
-    .update({ role: 'admin' } as never)
-    .eq('id', people.admin)
-  if (error) throw error
+  for (const [id, role] of [
+    [people.admin, 'admin'],
+    [people.boss, 'manager']
+  ] as const) {
+    const { error } = await root
+      .from('profiles')
+      .update({ role } as never)
+      .eq('id', id)
+    if (error) throw error
+  }
 })
 
 afterAll(async () => {
@@ -102,15 +116,89 @@ describe('admin', () => {
 
   it('sees the task with both assignees on the board', async () => {
     await as('admin')
-    const row = (await listAllTasks()).find((t) => t.id === task.id)
+    const row = (await listOpenBoardTasks({ id: people.admin, role: 'admin' })).find(
+      (t) => t.id === task.id
+    )
     expect(row?.assignees.map((a) => a.id).sort()).toEqual([people.asha, people.ravi].sort())
   })
 
-  it('can move the task through every status', async () => {
+  it("can move one person through every status, and the task follows everyone's", async () => {
     await as('admin')
-    for (const status of TASK_STATUSES)
-      expect((await updateTaskStatus({ taskId: task.id, status })).status).toBe(status)
-    await updateTaskStatus({ taskId: task.id, status: 'pending' })
+    const whole = {
+      pending: 'pending',
+      in_progress: 'in_progress',
+      completed: 'in_progress',
+      blocked: 'blocked'
+    }
+    for (const status of TASK_STATUSES) {
+      expect(
+        (await updateTaskStatus({ taskId: task.id, userId: people.asha, status })).status
+      ).toBe(status)
+      expect(
+        (await root.from('tasks').select('status').eq('id', task.id).single()).data?.status
+      ).toBe(whole[status])
+    }
+    await updateTaskStatus({ taskId: task.id, userId: people.asha, status: 'pending' })
+  })
+})
+
+describe('finished tasks', () => {
+  const none = { search: '', person: '', limit: 25 }
+  let done: Task
+  let other: Task
+
+  beforeAll(async () => {
+    await as('admin')
+    const due = new Date(Date.now() + 864e5).toISOString()
+    done = await createTask({
+      title: `Shared ${run}`,
+      dueDate: due,
+      userIds: [people.asha, people.ravi]
+    })
+    other = await createTask({ title: `Solo ${run}`, dueDate: due, userIds: [people.ravi] })
+    for (const userId of [people.asha, people.ravi])
+      await updateTaskStatus({ taskId: done.id, userId, status: 'completed' })
+    await updateTaskStatus({ taskId: other.id, userId: people.ravi, status: 'completed' })
+  })
+
+  it('leave the unfinished list and arrive newest first on the board', async () => {
+    const me = { id: people.admin, role: 'admin' } as const
+    expect((await listOpenBoardTasks(me)).map((t) => t.id)).not.toContain(done.id)
+    const { rows, total } = await listDoneBoardTasks(me, none)
+    expect(rows.map((t) => t.id).slice(0, 2)).toEqual([other.id, done.id])
+    expect(total).toBeGreaterThanOrEqual(2)
+  })
+
+  it('narrow by person without losing the other names on the card', async () => {
+    const me = { id: people.admin, role: 'admin' } as const
+    const { rows, total } = await listDoneBoardTasks(me, { ...none, person: people.asha })
+    expect(rows.map((t) => t.id)).toEqual([done.id])
+    expect(total).toBe(1)
+    expect(rows[0]?.assignees.map((a) => a.id).sort()).toEqual([people.asha, people.ravi].sort())
+  })
+
+  it('narrow by title and report when more are left', async () => {
+    const me = { id: people.admin, role: 'admin' } as const
+    const found = await listDoneBoardTasks(me, { ...none, search: `solo ${run}` })
+    expect(found.rows.map((t) => t.id)).toEqual([other.id])
+    const first = await listDoneBoardTasks(me, { ...none, limit: 1 })
+    expect(first.rows).toHaveLength(1)
+    expect(first.more).toBe(true)
+  })
+
+  it('show a person only their own', async () => {
+    await as('asha')
+    const { rows, total } = await listDoneMyTasks(people.asha, none)
+    expect(rows.map((t) => t.id)).toEqual([done.id])
+    expect(total).toBe(1)
+    await as('meena')
+    expect(await listDoneMyTasks(people.asha, none)).toMatchObject({ rows: [], total: 0 })
+  })
+
+  it("stay out of another manager's board", async () => {
+    await as('boss')
+    const { rows } = await listDoneBoardTasks({ id: people.boss, role: 'manager' }, none)
+    expect(rows.map((t) => t.id)).not.toContain(done.id)
   })
 })
 
@@ -125,44 +213,73 @@ describe('user', () => {
 
   it('sees only tasks given to them', async () => {
     await as('asha')
-    expect((await listMyTasks(people.asha)).map((t) => t.id)).toContain(task.id)
+    expect((await listOpenMyTasks(people.asha)).map((t) => t.id)).toContain(task.id)
     const meena = await as('meena')
-    expect(await listMyTasks(people.meena)).toEqual([])
+    expect(await listOpenMyTasks(people.meena)).toEqual([])
     expect((await meena.from('tasks').select('id').eq('id', task.id)).data).toEqual([])
     expect((await meena.from('task_assignments').select('id').eq('task_id', task.id)).data).toEqual(
       []
     )
   })
 
-  it('moves their task pending → in_progress → completed', async () => {
+  it('moves their own part pending → in_progress → completed', async () => {
     await as('asha')
-    expect((await updateTaskStatus({ taskId: task.id, status: 'in_progress' })).status).toBe(
-      'in_progress'
+    const mine = { taskId: task.id, userId: people.asha }
+    expect((await updateTaskStatus({ ...mine, status: 'in_progress' })).status).toBe('in_progress')
+    expect((await updateTaskStatus({ ...mine, status: 'completed' })).status).toBe('completed')
+    expect((await listOpenMyTasks(people.asha)).map((t) => t.id)).not.toContain(task.id)
+    // Ravi hasn't finished, so the task is still open for him and for the board.
+    await as('ravi')
+    expect((await listOpenMyTasks(people.ravi)).find((t) => t.id === task.id)?.status).toBe(
+      'pending'
     )
-    expect((await updateTaskStatus({ taskId: task.id, status: 'completed' })).status).toBe(
-      'completed'
+    expect(
+      (await root.from('tasks').select('status').eq('id', task.id).single()).data?.status
+    ).toBe('in_progress')
+  })
+
+  it("sees everyone's progress on their task, but changes only their own", async () => {
+    await as('ravi')
+    const seen = await getTask(task.id)
+    expect(
+      seen?.assignees.map(({ id, status, editable }) => [id, status, editable]).sort()
+    ).toEqual(
+      [
+        [people.asha, 'completed', false],
+        [people.ravi, 'pending', true]
+      ].sort()
+    )
+    expect(seen?.assignees.every((a) => a.full_name && a.email === null)).toBe(true)
+    await rejectsWith(
+      updateTaskStatus({ taskId: task.id, userId: people.asha, status: 'blocked' }),
+      'errDenied'
     )
   })
 
   it("cannot change the status of someone else's task", async () => {
     await as('meena')
-    await rejectsWith(updateTaskStatus({ taskId: task.id, status: 'blocked' }), 'errDenied')
+    await rejectsWith(
+      updateTaskStatus({ taskId: task.id, userId: people.meena, status: 'blocked' }),
+      'errDenied'
+    )
+    expect(await getTask(task.id)).toBeNull()
   })
 
-  it('cannot edit title, description or due date', async () => {
+  it('cannot write the whole task status, title, description or due date', async () => {
     const asha = await as('asha')
     for (const patch of [
       { title: 'Renamed' },
       { description: 'Changed' },
-      { due_date: new Date().toISOString() }
-    ])
-      await rejectsWith(
-        Promise.resolve(asha.from('tasks').update(patch).eq('id', task.id).select()).then((r) => {
-          if (r.error) throw r.error
-          return r
-        }),
-        'errDenied'
-      )
+      { due_date: new Date().toISOString() },
+      { status: 'completed' }
+    ] as const) {
+      const r = await asha
+        .from('tasks')
+        .update(patch as never)
+        .eq('id', task.id)
+        .select()
+      expect(r.error ?? r.data).toSatisfy((x) => !Array.isArray(x) || x.length === 0)
+    }
     const { data } = await root
       .from('tasks')
       .select('title, description')
@@ -189,6 +306,164 @@ describe('user', () => {
   })
 })
 
+describe('manager', () => {
+  let own: Task
+
+  it('picks from staff only and creates tasks for them', async () => {
+    await as('boss')
+    expect((await listPeople('manager')).map((p) => p.id).sort()).toEqual(
+      expect.arrayContaining([people.asha, people.ravi, people.meena])
+    )
+    expect((await listPeople('manager')).map((p) => p.id)).not.toContain(people.admin)
+    own = await createTask({
+      title: 'Check the till',
+      dueDate: new Date(Date.now() + 864e5).toISOString(),
+      userIds: [people.meena]
+    })
+    expect(own.created_by).toBe(people.boss)
+  })
+
+  it('cannot task an admin', async () => {
+    await as('boss')
+    await rejectsWith(
+      createTask({ title: 'Nope', dueDate: new Date().toISOString(), userIds: [people.admin] }),
+      'errTaskStaffOnly'
+    )
+  })
+
+  it('sees only the tasks they created on the board', async () => {
+    const boss = await as('boss')
+    expect(
+      (await listOpenBoardTasks({ id: people.boss, role: 'manager' })).map((t) => t.id)
+    ).toEqual([own.id])
+    expect((await boss.from('tasks').select('id').eq('id', task.id)).data).toEqual([])
+    await rejectsWith(
+      updateTaskStatus({ taskId: task.id, userId: people.ravi, status: 'blocked' }),
+      'errDenied'
+    )
+  })
+
+  it('never reads staff daily updates', async () => {
+    const boss = await as('boss')
+    expect(
+      (await boss.from('daily_statuses').select('id').neq('user_id', people.boss)).data
+    ).toEqual([])
+  })
+
+  it('is seen by the admin and the assignee', async () => {
+    await as('admin')
+    expect(
+      (await listOpenBoardTasks({ id: people.admin, role: 'admin' })).map((t) => t.id)
+    ).toContain(own.id)
+    await as('meena')
+    expect(
+      (await updateTaskStatus({ taskId: own.id, userId: people.meena, status: 'in_progress' }))
+        .status
+    ).toBe('in_progress')
+  })
+
+  it("updates a person's status on a task they created", async () => {
+    await as('boss')
+    expect(
+      (await updateTaskStatus({ taskId: own.id, userId: people.meena, status: 'blocked' })).status
+    ).toBe('blocked')
+    expect((await getTask(own.id))?.assignees[0]).toMatchObject({
+      status: 'blocked',
+      editable: true
+    })
+  })
+})
+
+describe('shared progress', () => {
+  let shared: Task
+  const events = async (): Promise<string[]> =>
+    (
+      (await root
+        .from('notifications')
+        .select('event')
+        .eq('target_id', shared.id)
+        .eq('user_id', people.admin)
+        .order('id')
+        .then((r) => r.data)) as { event: string }[]
+    ).map((n) => n.event)
+
+  beforeAll(async () => {
+    await as('admin')
+    shared = await createTask({
+      title: `Together ${run}`,
+      dueDate: new Date(Date.now() + 864e5).toISOString(),
+      userIds: [people.asha, people.ravi, people.meena]
+    })
+  })
+
+  it('tells the admin about each change, then once that everyone has finished', async () => {
+    await as('asha')
+    await updateTaskStatus({ taskId: shared.id, userId: people.asha, status: 'completed' })
+    expect(await events()).toEqual(['taskStatus'])
+    await as('ravi')
+    await updateTaskStatus({ taskId: shared.id, userId: people.ravi, status: 'blocked' })
+    expect(
+      (await root.from('tasks').select('status').eq('id', shared.id).single()).data?.status
+    ).toBe('blocked')
+    await updateTaskStatus({ taskId: shared.id, userId: people.ravi, status: 'completed' })
+    // The last two finish at the same moment: whichever commits second still completes the task.
+    const meena = await as('meena')
+    const ravi = await as('ravi')
+    await updateTaskStatus({ taskId: shared.id, userId: people.ravi, status: 'in_progress' })
+    const res = await Promise.all([
+      meena
+        .from('task_assignments')
+        .update({ status: 'completed' })
+        .eq('task_id', shared.id)
+        .eq('user_id', people.meena)
+        .select(),
+      ravi
+        .from('task_assignments')
+        .update({ status: 'completed' })
+        .eq('task_id', shared.id)
+        .eq('user_id', people.ravi)
+        .select()
+    ])
+    expect(res.map((r) => r.error)).toEqual([null, null])
+    expect(
+      (await root.from('tasks').select('status').eq('id', shared.id).single()).data?.status
+    ).toBe('completed')
+    expect((await events()).at(-1)).toBe('taskDone')
+    expect((await events()).filter((e) => e === 'taskDone')).toHaveLength(1)
+  })
+
+  it('reminds only the people who have not started', async () => {
+    const late = await createTaskAs('admin', [people.asha, people.ravi])
+    await root
+      .from('task_assignments')
+      .update({ assigned_at: new Date(Date.now() - 36e5).toISOString() } as never)
+      .eq('task_id', late)
+    await as('asha')
+    await updateTaskStatus({ taskId: late, userId: people.asha, status: 'in_progress' })
+    const noon = new Date('2026-11-04T06:30:00Z').toISOString()
+    expect(
+      (await root.rpc('remind_pending_tasks' as never, { p_at: noon } as never)).error
+    ).toBeNull()
+    const { data } = await root
+      .from('notifications')
+      .select('user_id')
+      .eq('target_id', late)
+      .eq('event', 'taskReminder')
+    expect((data as { user_id: string }[]).map((n) => n.user_id)).toEqual([people.ravi])
+  })
+})
+
+const createTaskAs = async (who: Who, userIds: string[]): Promise<string> => {
+  await as(who)
+  return (
+    await createTask({
+      title: `Remind ${run}`,
+      dueDate: new Date(Date.now() + 864e5).toISOString(),
+      userIds
+    })
+  ).id
+}
+
 describe('realtime', () => {
   it('tells assignees about status changes and keeps others out', async () => {
     const clients: SupabaseClient<Database>[] = []
@@ -199,9 +474,10 @@ describe('realtime', () => {
       await new Promise<void>((ok, bad) =>
         c
           .channel(`rt-${who}-${run}`)
-          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks' }, (p) =>
-            got.push((p.new as Task).status)
-          )
+          // Only this task: Realtime can still deliver the listener's own task from the test before.
+          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tasks' }, (p) => {
+            if ((p.new as Task).id === task.id) got.push((p.new as Task).status)
+          })
           .subscribe((s) =>
             s === 'SUBSCRIBED'
               ? ok()
@@ -215,7 +491,7 @@ describe('realtime', () => {
     const ravi = await listen('ravi')
     const meena = await listen('meena')
     await as('admin')
-    await updateTaskStatus({ taskId: task.id, status: 'blocked' })
+    await updateTaskStatus({ taskId: task.id, userId: people.ravi, status: 'blocked' })
     await expect.poll(() => ravi, { timeout: 10_000 }).toContain('blocked')
     // Give a leaked event time to arrive before asserting it never did.
     await new Promise((r) => setTimeout(r, 1500))

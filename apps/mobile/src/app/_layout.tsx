@@ -3,7 +3,6 @@ import { supabase } from '@/lib/supabase'
 // Registers its sign-in listener before anyone can sign in (see freshSignIn).
 import '@/lib/appLock'
 import { I18nContext, LOCALE, translator, useT, type I18n } from '@daily-status/core/i18n'
-import { db } from '@daily-status/core/supabase'
 import { useAuth } from '@daily-status/core/useAuth'
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
@@ -13,9 +12,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { LogBox } from 'react-native'
 import { Uniwind, useUniwind } from 'uniwind'
 import { GluestackUIProvider } from '@/components/gs/gluestack-ui-provider'
-import { Button, Notice, Screen } from '@/components/ui'
+import { Logo } from '@/components/Logo'
+import { Button, Notice, Screen, Title } from '@/components/ui'
 import { initialLang, saveLang } from '@/lib/lang'
 import { ProfileContext } from '@/lib/profile'
+import { signOut } from '@/lib/push'
 import { prefs } from '@/lib/storage'
 import {
   accentVars,
@@ -72,7 +73,23 @@ const Main = (): React.JSX.Element | null => {
       <Screen center>
         <Notice tone="bad">{t(auth.message)}</Notice>
         <Button onPress={auth.retry}>{t('tryAgain')}</Button>
-        <Button variant="ghost" onPress={() => void db().auth.signOut()}>
+        <Button variant="ghost" onPress={() => void signOut()}>
+          {t('signOut')}
+        </Button>
+      </Screen>
+    )
+  if (auth.state === 'waiting')
+    return (
+      <Screen center>
+        <Logo />
+        <Title
+          center
+          sub={auth.declined ? t('declinedHint') : t('waitingHint', { email: auth.email })}
+        >
+          {t(auth.declined ? 'declinedTitle' : 'waitingTitle')}
+        </Title>
+        <Button onPress={auth.retry}>{t('checkAgain')}</Button>
+        <Button variant="ghost" onPress={() => void signOut()}>
           {t('signOut')}
         </Button>
       </Screen>

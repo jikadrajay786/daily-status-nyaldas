@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import type { DailyStatus, Profile } from '@daily-status/core/database.types'
 import { fmtDate, fmtHours, nameOf } from '@daily-status/core/format'
 import { useT } from '@daily-status/core/i18n'
-import { wasEdited } from '@daily-status/core/statusService'
+import { fmtStatusTimes, wasEdited } from '@daily-status/core/statusService'
 import { CommentsButton } from './CommentsButton'
 import { RichText } from './Editor/RichText'
 import { Badge } from './ui'
@@ -36,21 +36,11 @@ export const StatusCard = ({
         <span className={`text-sm text-fg-2 ${author === undefined ? 'mr-auto' : ''}`}>
           {fmtDate(s.date, locale)}
         </span>
-        {wasEdited(s) && (
-          <span
-            title={t('editedAt', {
-              when: new Date(s.updated_at).toLocaleString(locale, {
-                dateStyle: 'medium',
-                timeStyle: 'short'
-              })
-            })}
-          >
-            <Badge label={t('edited')} tone="idle" />
-          </span>
-        )}
+        {wasEdited(s) && <Badge label={t('edited')} tone="idle" />}
         <Badge label={fmtHours(s.hours_logged, t)} tone="info" />
       </header>
       <RichText html={s.description} />
+      <p className="mt-3 text-xs text-fg-3">{fmtStatusTimes(s, t, locale)}</p>
       {(actions || commentable) && (
         <footer className="mt-3 flex flex-wrap items-center justify-end gap-2">
           {commentable && (

@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { CalendarX, SearchX } from 'lucide-react'
 import { useCommentCounts } from '@daily-status/core/commentService'
 import { Flame } from 'lucide-react'
@@ -9,12 +10,21 @@ import {
   getUserStreak,
   type DirectoryEntry
 } from '@daily-status/core/adminService'
-import { fmtHours, fmtShort, initials, nameOf } from '@daily-status/core/format'
+import {
+  fmtHours,
+  fmtShort,
+  initials,
+  nameOf,
+  ROLE_KEY,
+  ROLE_TONE
+} from '@daily-status/core/format'
+import type { Profile } from '@daily-status/core/database.types'
 import { useT, type Key } from '@daily-status/core/i18n'
 import { deleteStatus } from '@daily-status/core/statusService'
 import { today } from '@daily-status/core/supabase'
 import { useDebounced } from '@daily-status/core/useDebounced'
 import { useLiveQuery } from '@daily-status/core/live'
+import { usePaged } from '@daily-status/core/usePaged'
 import { errMsg } from '@daily-status/core/useQuery'
 import {
   addDays,
@@ -24,9 +34,22 @@ import {
   presetRange,
   type Preset
 } from '@daily-status/core/workdays'
+import { RolePicker } from './RolePicker'
 import { CalendarSkeleton, CardsSkeleton } from '../Skeletons'
 import { StatusCard } from '../StatusCard'
-import { Avatar, Badge, Button, Card, Field, Input, Notice, Skeleton, Stat, Empty } from '../ui'
+import {
+  LoadMore,
+  Avatar,
+  Badge,
+  Button,
+  Card,
+  Field,
+  Input,
+  Notice,
+  Skeleton,
+  Stat,
+  Empty
+} from '../ui'
 import { StatusEditForm } from './StatusEditForm'
 import { SubmissionCalendar } from './SubmissionCalendar'
 
@@ -36,9 +59,23 @@ const PRESETS: readonly [Preset, Key][] = [
   ['custom', 'customRange']
 ]
 
-type Props = { person: DirectoryEntry; version: string; onChanged: () => void }
+type Props = {
+  slot: HTMLElement | null
+  person: DirectoryEntry
+  me: Pick<Profile, 'id' | 'role'>
+  leads: DirectoryEntry[]
+  version: string
+  onChanged: () => void
+}
 
-export const UserHistoryDetail = ({ person, version, onChanged }: Props): React.JSX.Element => {
+export const UserHistoryDetail = ({
+  slot,
+  person,
+  me,
+  leads,
+  version,
+  onChanged
+}: Props): React.JSX.Element => {
   const { t, locale } = useT()
   const periodId = useId()
   const now = today()
@@ -51,12 +88,12 @@ export const UserHistoryDetail = ({ person, version, onChanged }: Props): React.
   const [metrics] = useLiveQuery(`umetrics:${key}`, () =>
     getIndividualUserMetrics(person.id, range.start, range.end)
   )
-  const [history] = useLiveQuery(`uhistory:${key}:${q}`, () =>
-    getIndividualUserHistory(person.id, range.start, range.end, q)
+  const [history] = usePaged(`uhistory:${key}:${q}`, (limit, offset) =>
+    getIndividualUserHistory(person.id, range.start, range.end, q, limit, offset)
   )
   const counts = useCommentCounts(
     'status',
-    history.state === 'ok' ? history.data.map((s) => s.id) : []
+    history.state === 'ok' ? history.data.rows.map((s) => s.id) : []
   )
   const [streak] = useLiveQuery(`streak:${person.id}:${version}`, () => getUserStreak(person.id))
   const [editing, setEditing] = useState<string>()
@@ -84,24 +121,22 @@ export const UserHistoryDetail = ({ person, version, onChanged }: Props): React.
       }
     })
 
-  return (
-    <>
-      <Card className="mb-6">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
-          <div className="flex min-w-0 flex-[1_1_16rem] items-center gap-4">
-            <Avatar size="lg" text={initials(person)} />
-            <div className="min-w-0">
-              <h2 className="truncate text-lg font-semibold text-fg">{name}</h2>
-              <p className="truncate text-sm text-fg-2">{person.email}</p>
-              <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-fg-3">
-                <Badge
-                  label={t(person.role === 'admin' ? 'roleAdmin' : 'roleMember')}
-                  tone={person.role === 'admin' ? 'warn' : 'idle'}
-                />
-                {t('joinedOn', { date: fmtShort(localDay(person.created_at), locale) })}
-              </p>
-            </div>
+  const isAdmin = person.role === 'admin'
+  const header = (
+    <Card className="mb-6">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
+        <div className="flex min-w-0 flex-[1_1_16rem] items-center gap-4">
+          <Avatar size="lg" text={initials(person)} />
+          <div className="min-w-0">
+            <h2 className="truncate text-lg font-semibold text-fg">{name}</h2>
+            <p className="truncate text-sm text-fg-2">{person.email}</p>
+            <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-fg-3">
+              <Badge label={t(ROLE_KEY[person.role])} tone={ROLE_TONE[person.role]} />
+              {t('joinedOn', { date: fmtShort(localDay(person.created_at), locale) })}
+            </p>
           </div>
+        </div>
+        {!isAdmin && (
           <dl className="flex gap-8">
             <div>
               <dt className="text-xs font-medium text-fg-2">{t('totalDays')}</dt>
@@ -125,73 +160,90 @@ export const UserHistoryDetail = ({ person, version, onChanged }: Props): React.
               <dd className="text-xs text-fg-3">{t('streakDays')}</dd>
             </div>
           </dl>
-        </div>
-      </Card>
+        )}
+      </div>
+      {me.role === 'admin' && <RolePicker person={person} me={me.id} leads={leads} />}
+    </Card>
+  )
 
-      <Card className="mb-6">
-        <div className="flex flex-wrap items-start gap-4">
-          <div className="flex flex-col gap-1.5 text-sm">
-            <span id={periodId} className="font-medium text-fg-2">
-              {t('period')}
-            </span>
-            <div
-              role="group"
-              aria-labelledby={periodId}
-              className="flex gap-0.5 rounded-lg p-0.5 ring-1 ring-line"
-            >
-              {PRESETS.map(([p, label]) => (
-                <button
-                  key={p}
-                  type="button"
-                  aria-pressed={preset === p}
-                  onClick={() => pick(p)}
-                  className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-                    preset === p ? 'bg-selected text-fg' : 'text-fg-2 hover:text-fg'
-                  }`}
-                >
-                  {t(label)}
-                </button>
-              ))}
+  if (isAdmin)
+    return (
+      <>
+        {header}
+        <Notice>{t('roleAdminNoUpdates')}</Notice>
+      </>
+    )
+
+  return (
+    <>
+      {header}
+
+      {slot &&
+        createPortal(
+          <div className="flex flex-wrap items-start gap-4">
+            <div className="flex flex-col gap-1.5 text-sm">
+              <span id={periodId} className="font-medium text-fg-2">
+                {t('period')}
+              </span>
+              <div
+                role="group"
+                aria-labelledby={periodId}
+                className="flex gap-0.5 rounded-lg p-0.5 ring-1 ring-line"
+              >
+                {PRESETS.map(([p, label]) => (
+                  <button
+                    key={p}
+                    type="button"
+                    aria-pressed={preset === p}
+                    onClick={() => pick(p)}
+                    className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+                      preset === p ? 'bg-selected text-fg' : 'text-fg-2 hover:text-fg'
+                    }`}
+                  >
+                    {t(label)}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-          {preset === 'custom' && (
-            <>
-              <div className="w-44">
-                <Field label={t('from')}>
-                  <Input
-                    type="date"
-                    value={custom.start}
-                    min={addDays(range.end, 1 - MAX_RANGE_DAYS)}
-                    max={range.end}
-                    onChange={(e) => setCustom((c) => ({ ...c, start: e.target.value }))}
-                  />
-                </Field>
-              </div>
-              <div className="w-44">
-                <Field label={t('to')} hint={t('rangeHint')}>
-                  <Input
-                    type="date"
-                    value={custom.end}
-                    min={range.start}
-                    max={now}
-                    onChange={(e) => setCustom((c) => ({ ...c, end: e.target.value }))}
-                  />
-                </Field>
-              </div>
-            </>
-          )}
-          <div className="min-w-48 flex-1">
-            <Field label={t('search')}>
-              <Input
-                type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={t('searchUpdates')}
-              />
-            </Field>
-          </div>
-        </div>
-      </Card>
+            {preset === 'custom' && (
+              <>
+                <div className="w-44">
+                  <Field label={t('from')}>
+                    <Input
+                      type="date"
+                      value={custom.start}
+                      min={addDays(range.end, 1 - MAX_RANGE_DAYS)}
+                      max={range.end}
+                      onChange={(e) => setCustom((c) => ({ ...c, start: e.target.value }))}
+                    />
+                  </Field>
+                </div>
+                <div className="w-44">
+                  <Field label={t('to')} hint={t('rangeHint')}>
+                    <Input
+                      type="date"
+                      value={custom.end}
+                      min={range.start}
+                      max={now}
+                      onChange={(e) => setCustom((c) => ({ ...c, end: e.target.value }))}
+                    />
+                  </Field>
+                </div>
+              </>
+            )}
+            <div className="min-w-48 flex-1">
+              <Field label={t('search')}>
+                <Input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={t('searchUpdates')}
+                />
+              </Field>
+            </div>
+          </div>,
+          slot
+        )}
 
       {metrics.state === 'error' && (
         <div className="mb-4">
@@ -240,58 +292,63 @@ export const UserHistoryDetail = ({ person, version, onChanged }: Props): React.
         <CardsSkeleton />
       ) : history.state === 'error' ? (
         <Notice tone="bad">{t(history.message)}</Notice>
-      ) : history.data.length ? (
-        <ol className="ml-1 flex flex-col gap-3 border-l-2 border-line pl-5">
-          {history.data.map((s) => (
-            <li key={s.id} className="relative">
-              <span
-                aria-hidden
-                className="absolute top-5 -left-[calc(1.5625rem+1px)] size-2.5 rounded-full bg-accent ring-4 ring-canvas"
-              />
-              {editing === s.id ? (
-                <StatusEditForm
-                  status={s}
-                  name={name}
-                  onSaved={() => {
-                    setEditing(undefined)
-                    onChanged()
-                  }}
-                  onCancel={() => setEditing(undefined)}
+      ) : history.data.rows.length ? (
+        <>
+          <ol className="ml-1 flex flex-col gap-3 border-l-2 border-line pl-5">
+            {history.data.rows.map((s) => (
+              <li key={s.id} className="relative">
+                <span
+                  aria-hidden
+                  className="absolute top-5 -left-[calc(1.5625rem+1px)] size-2.5 rounded-full bg-accent ring-4 ring-canvas"
                 />
-              ) : (
-                <StatusCard
-                  status={s}
-                  comments={counts[s.id]}
-                  actions={
-                    // In-app confirm: window.confirm's OK/Cancel buttons stay in the OS language.
-                    confirming === s.id ? (
-                      <>
-                        <span className="mr-auto self-center text-sm text-bad-fg">
-                          {t('confirmDelete')}
-                        </span>
-                        <Button variant="ghost" onClick={() => setConfirming(undefined)}>
-                          {t('cancel')}
-                        </Button>
-                        <Button variant="danger" busy={deleting} onClick={() => remove(s.id)}>
-                          {t('yesDelete')}
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button variant="ghost" onClick={() => setEditing(s.id)}>
-                          {t('edit')}
-                        </Button>
-                        <Button variant="danger" onClick={() => setConfirming(s.id)}>
-                          {t('delete')}
-                        </Button>
-                      </>
-                    )
-                  }
-                />
-              )}
-            </li>
-          ))}
-        </ol>
+                {editing === s.id ? (
+                  <StatusEditForm
+                    status={s}
+                    name={name}
+                    onSaved={() => {
+                      setEditing(undefined)
+                      onChanged()
+                    }}
+                    onCancel={() => setEditing(undefined)}
+                  />
+                ) : (
+                  <StatusCard
+                    status={s}
+                    comments={counts[s.id]}
+                    actions={
+                      // Store and agency managers read their staff's updates but can't change them.
+                      me.role !== 'admin' ? undefined : confirming === s.id ? ( // In-app confirm: window.confirm's OK/Cancel buttons stay in the OS language.
+                        <>
+                          <span className="mr-auto self-center text-sm text-bad-fg">
+                            {t('confirmDelete')}
+                          </span>
+                          <Button variant="ghost" onClick={() => setConfirming(undefined)}>
+                            {t('cancel')}
+                          </Button>
+                          <Button variant="danger" busy={deleting} onClick={() => remove(s.id)}>
+                            {t('yesDelete')}
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button variant="ghost" onClick={() => setEditing(s.id)}>
+                            {t('edit')}
+                          </Button>
+                          <Button variant="danger" onClick={() => setConfirming(s.id)}>
+                            {t('delete')}
+                          </Button>
+                        </>
+                      )
+                    }
+                  />
+                )}
+              </li>
+            ))}
+          </ol>
+          <div className="mt-3">
+            <LoadMore page={history.data} />
+          </div>
+        </>
       ) : (
         <Empty
           icon={q ? <SearchX className="size-7" /> : <CalendarX className="size-7" />}

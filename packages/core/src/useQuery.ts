@@ -14,6 +14,8 @@ const rawMsg = (err: unknown): string =>
 // Supabase errors are written for developers; users only ever see these translated plain-language keys.
 // Auth errors carry a stable `code`, which is checked before falling back to message text.
 const CODES: Partial<Record<string, Key>> = {
+  // `.single()` found nothing: deleted, or the caller's role just changed and RLS now hides it.
+  PGRST116: 'notFound',
   invalid_credentials: 'errBadLogin',
   email_not_confirmed: 'errNotConfirmed',
   user_already_exists: 'errExists',
@@ -30,7 +32,15 @@ const CODES: Partial<Record<string, Key>> = {
   comment_body: 'errCommentBody',
   holiday_day: 'errHolidayDay',
   holiday_name: 'errHolidayName',
-  holiday_exists: 'errHolidayExists'
+  holiday_exists: 'errHolidayExists',
+  leave_typeId: 'errLeaveType',
+  leave_start: 'errLeaveDates',
+  leave_end: 'errLeaveDates',
+  leave_startHalf: 'errLeaveDates',
+  leave_endHalf: 'errLeaveDates',
+  leave_reason: 'errLeaveReason',
+  leave_note: 'errLength',
+  leave_days: 'errLeaveAdjust'
 }
 
 const FRIENDLY: readonly [RegExp, Key][] = [
@@ -45,10 +55,26 @@ const FRIENDLY: readonly [RegExp, Key][] = [
   [/failed to fetch|network|fetch failed/i, 'errOffline'],
   [/row-level security|permission denied|only the task status can change/i, 'errDenied'],
   [/hours_check/i, 'errHours'],
+  [/daily hours over/i, 'errHoursDay'],
   [/description_check/i, 'errLength'],
   [/tasks_title_check/i, 'errTaskTitle'],
   [/at least one assignee/i, 'errTaskPeople'],
-  [/only be given to staff/i, 'errTaskStaffOnly']
+  [/only be given to staff/i, 'errTaskStaffOnly'],
+  [/leave balance too low/i, 'errLeaveBalance'],
+  [/leave_requests_no_overlap/i, 'errLeaveOverlap'],
+  [/leave has no working days/i, 'errLeaveNoWorkdays'],
+  [/leave date too far back/i, 'errLeaveTooOld'],
+  [/leave dates invalid|leave_requests_(dates|halves)_check/i, 'errLeaveDates'],
+  [/leave half day not allowed/i, 'errLeaveHalfDay'],
+  [/leave type not available/i, 'errLeaveType'],
+  [/leave request already closed/i, 'errLeaveClosed'],
+  [/leave already started/i, 'errLeaveStarted'],
+  [/leave adjustment invalid/i, 'errLeaveAdjust'],
+  [/cannot change your own role/i, 'errRoleOwn'],
+  [/still has open tasks/i, 'errRoleOpenTasks'],
+  [/still has open leave requests/i, 'errRoleOpenLeave'],
+  [/only staff report to/i, 'errReportsInvalid'],
+  [/no such person/i, 'notFound']
 ]
 
 const codeOf = (err: unknown): string =>

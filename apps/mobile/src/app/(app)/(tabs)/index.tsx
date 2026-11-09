@@ -1,13 +1,15 @@
 import { bumpLive, useLiveQuery } from '@daily-status/core/live'
 import type { DailyStatus } from '@daily-status/core/database.types'
-import { fmtDate } from '@daily-status/core/format'
+import { fmtDate, fmtHours, fmtStamp } from '@daily-status/core/format'
 import { useT, type Key } from '@daily-status/core/i18n'
 import { loadPlanBefore, parseDraft, type Draft } from '@daily-status/core/richText'
 import {
+  addStatus,
   canChange,
-  getMyStatus,
+  hoursLeft,
+  listMyDay,
   listMyStatuses,
-  saveStatus
+  updateStatus
 } from '@daily-status/core/statusService'
 import { today } from '@daily-status/core/supabase'
 import { useDayOff } from '@daily-status/core/holidayService'
@@ -21,8 +23,18 @@ import { Text } from '@/components/gs/text'
 import { VStack } from '@/components/gs/vstack'
 import { HoursField } from '@/components/HoursField'
 import { DateField } from '@/components/DateField'
-import { CardsSkeleton, StatusCard } from '@/components/StatusCard'
-import { Badge, Button, Link, Loading, Notice, Screen, Skeleton, Title } from '@/components/ui'
+import { CardsSkeleton, StatusCard, StatusRow } from '@/components/StatusCard'
+import {
+  Badge,
+  Button,
+  Card,
+  Link,
+  Loading,
+  Notice,
+  Screen,
+  Skeleton,
+  Title
+} from '@/components/ui'
 import EditorPage from '@/dom/EditorPage'
 import {
   editorFontScale,
@@ -52,26 +64,31 @@ export default function Today(): React.JSX.Element {
   const profile = useProfile()
   const params = useLocalSearchParams<{ date?: string; edit?: string }>()
   const date = validDate(params.date) ?? today()
-  // `edit=1` opens the date's saved update straight in the form (History and Recent's Edit buttons).
-  const editing = params.edit === '1'
+  // `edit` is an update's id (History's and the details screen's Edit buttons), or `new` to add another one.
+  const adding = params.edit === 'new'
   const [saved, setSaved] = useState<string | null>(null)
-  const setDate = (d: string, edit = false): void => {
+  const setDate = (d: string, edit = ''): void => {
     setSaved(null)
-    router.setParams({ date: d, edit: edit ? '1' : '' })
+    router.setParams({ date: d, edit })
   }
 
-  const [row, , rowRefreshing] = useLiveQuery(`mine:${profile.id}:${date}`, () =>
-    getMyStatus(profile.id, date)
+  const [day, , dayRefreshing] = useLiveQuery(`mine:${profile.id}:${date}`, () =>
+    listMyDay(profile.id, date)
   )
+  const rows = day.state === 'ok' ? day.data : []
+  const editRow = rows.find((r) => r.id === params.edit) ?? null
+  const left = hoursLeft(rows, editRow?.id)
+  // A first update starts at a full day; another starts at whatever the day still has room for, up to that.
+  const startHours = String(editRow?.hours_logged ?? Math.max(0, Math.min(8, left)))
   const [recent, , recentRefreshing] = useLiveQuery(`recent:${profile.id}`, () =>
-    listMyStatuses(profile.id, '', 5)
+    listMyStatuses(profile.id, '', 3).then(({ rows }) => rows)
   )
   const [resets, setResets] = useState(0)
   const pull = usePullToRefresh(
-    row.state === 'loading' || recent.state === 'loading' || rowRefreshing || recentRefreshing,
+    day.state === 'loading' || recent.state === 'loading' || dayRefreshing || recentRefreshing,
     bumpLive
   )
-  const draftKey = `draft:${profile.id}:${date}`
+  const draftKey = `draft:${profile.id}:${date}${editRow ? `:${editRow.id}` : ''}`
 
   // A new date, a save or "Start over" resets the form, but the editor's WebView stays mounted: only its document
   // is swapped (docKey), which is much faster than reloading the page.
@@ -79,15 +96,13 @@ export default function Today(): React.JSX.Element {
   const [save, setSave] = useState<Save>({ state: 'idle' })
   const [hoursErr, setHoursErr] = useState<string>()
   const writeLang = useWriteLang(lang)
-  const key = row.state === 'ok' ? `${date}:${row.data?.updated_at ?? 'new'}:${resets}` : null
-  if (row.state === 'ok' && key && form?.key !== key) {
+  const key =
+    day.state === 'ok'
+      ? `${date}:${editRow ? `${editRow.id}:${editRow.updated_at}` : `new:${rows.length}`}:${resets}`
+      : null
+  if (day.state === 'ok' && key && form?.key !== key) {
     const draft = parseDraft(prefs.get(draftKey))
-    setForm({
-      key,
-      row: row.data,
-      draft,
-      hours: draft?.hours ?? String(row.data?.hours_logged ?? 8)
-    })
+    setForm({ key, row: editRow, draft, hours: draft?.hours ?? startHours })
     setSave({ state: 'idle' })
     setHoursErr(undefined)
   }
@@ -98,18 +113,25 @@ export default function Today(): React.JSX.Element {
   }, [form?.hours])
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => () => clearTimeout(timer.current), [])
-  const savedHours = String(form?.row?.hours_logged ?? 8)
+  const savedHours = startHours
   const { off: dayOff, holiday } = useDayOff(date)
-  const locked = !!form?.row && !canChange(date, profile.role)
-  // Once submitted the form closes and empties; Edit reopens it filled with what was saved. An unsaved draft
-  // means someone was mid-edit when they left, so the form stays open with their words.
-  const closed = locked || (!!form?.row && !editing && !form.draft)
+  const locked = rows.length > 0 && !canChange(date, profile.role)
+  // Once submitted the form closes and empties; Edit reopens it filled with what was saved, and Add another opens it
+  // empty. An unsaved draft means someone was mid-way when they left, so the form stays open with their words.
+  const closed = locked || (rows.length > 0 && !form?.row && !adding && !form?.draft)
   const writeDraft = (html: string, hours: string): void =>
     prefs.set(draftKey, JSON.stringify({ html, hours } satisfies Draft))
   // Drafts are written on a short debounce: the OS can close the app at any moment.
   const { editor, content, onChange, flush } = useEditorContent((c) => {
     clearTimeout(timer.current)
-    timer.current = setTimeout(() => writeDraft(c.html, hoursNow.current), 300)
+    // Emptied again with nothing else changed: no "unsaved changes" to keep.
+    timer.current = setTimeout(
+      () =>
+        c.empty && !form?.row && hoursNow.current === savedHours
+          ? prefs.remove(draftKey)
+          : writeDraft(c.html, hoursNow.current),
+      300
+    )
   })
 
   const setHours = (h: string): void => {
@@ -121,8 +143,9 @@ export default function Today(): React.JSX.Element {
 
   const scroll = useRef<ScrollViewInstance>(null)
   const formY = useRef(0)
+  const fieldsY = useRef(0)
   const editorY = useRef(0)
-  const fit = useEditorFit(scroll, () => formY.current + editorY.current)
+  const fit = useEditorFit(scroll, () => formY.current + fieldsY.current + editorY.current)
   // The editor runs in a WebView, so it gets the palette as resolved CSS variables rather than classes.
   const vars = useMemo(() => cssVars(colors), [colors])
 
@@ -136,13 +159,16 @@ export default function Today(): React.JSX.Element {
       setSave({ state: 'idle' })
       return setHoursErr(t(...bad))
     }
+    if (parseHours(form.hours) > left) {
+      setSave({ state: 'idle' })
+      return setHoursErr(t('hoursOverDay', { left: Math.max(0, left) }))
+    }
     try {
       clearTimeout(timer.current)
-      await saveStatus(profile.id, {
-        date,
-        description: c.html,
-        hours_logged: parseHours(form.hours)
-      })
+      const entry = { description: c.html, hours_logged: parseHours(form.hours) }
+      await (form.row
+        ? updateStatus(form.row.id, entry)
+        : addStatus(profile.id, { ...entry, date }))
       prefs.remove(draftKey)
       if (date === today()) markToday(profile.id, true)
       setSave({ state: 'idle' })
@@ -166,62 +192,82 @@ export default function Today(): React.JSX.Element {
   }
 
   return (
-    <Screen scrollRef={scroll} refreshControl={<RefreshControl {...pull} />}>
-      <Title>{t('navToday')}</Title>
+    <Screen
+      scrollRef={scroll}
+      refreshControl={<RefreshControl {...pull} />}
+      header={
+        <Title action={<DateField value={date} onChange={setDate} hideLabel pill />}>
+          {t('navToday')}
+        </Title>
+      }
+    >
       <VStack onLayout={(e) => (formY.current = e.nativeEvent.layout.y)} className="gap-3.5">
-        <DateField value={date} onChange={setDate} hideLabel />
-        {form && !form.row && dayOff && (
-          <Notice>{holiday ? t('holidayToday', { name: holiday }) : t('dayOff')}</Notice>
-        )}
-        {row.state === 'error' ? (
-          <Notice tone="bad">{t(row.message)}</Notice>
-        ) : !form ? (
-          <FormSkeleton />
+        {day.state === 'error' && <Notice tone="bad">{t(day.message)}</Notice>}
+        {/* A failed refresh keeps the form: removing it would tear down the WebView and the words in it. */}
+        {!form ? (
+          day.state !== 'error' && <FormSkeleton />
         ) : (
           <>
-            {locked && form.row && (
-              <>
-                <Notice>{t('statusLocked')}</Notice>
-                <StatusCard status={form.row} />
-              </>
+            {locked && <Notice>{t('statusLocked')}</Notice>}
+            {saved === date && closed && !locked && (
+              <Notice tone="ok">{t('savedDone', { date: fmtDate(date, locale) })}</Notice>
             )}
-            {closed && !locked && form.row && (
-              <>
-                {saved === date && (
-                  <Notice tone="ok">{t('savedDone', { date: fmtDate(date, locale) })}</Notice>
-                )}
+            {rows.length > 1 && (
+              <Text className="text-[14px] font-medium text-fg-2">
+                {t('dayTotal', {
+                  n: rows.length,
+                  hours: fmtHours(
+                    rows.reduce((sum, r) => sum + r.hours_logged, 0),
+                    t
+                  )
+                })}
+              </Text>
+            )}
+            {rows
+              .filter((r) => r.id !== form.row?.id)
+              .map((r) => (
                 <StatusCard
-                  status={form.row}
+                  key={r.id}
+                  status={r}
                   actions={
-                    <Button variant="ghost" onPress={() => setDate(date, true)}>
-                      {t('edit')}
-                    </Button>
+                    !locked &&
+                    closed && (
+                      <Button variant="ghost" onPress={() => setDate(date, r.id)}>
+                        {t('edit')}
+                      </Button>
+                    )
                   }
                 />
-              </>
+              ))}
+            {closed && !locked && (
+              <Button variant="ghost" onPress={() => setDate(date, 'new')}>
+                {t('addAnotherUpdate')}
+              </Button>
             )}
             {/* Locked dates collapse the form instead of removing it: unmounting (or display:none, which Fabric
                 also detaches) tears down the editor's WebView while its calls are in flight. */}
             <VStack
-              className={`gap-3.5 ${closed ? 'h-0 overflow-hidden opacity-0' : ''}`}
+              onLayout={(e) => (fieldsY.current = e.nativeEvent.layout.y)}
+              className={`gap-4 ${closed ? 'h-0 overflow-hidden opacity-0' : ''}`}
               pointerEvents={closed ? 'none' : 'auto'}
               accessibilityElementsHidden={closed}
               importantForAccessibility={closed ? 'no-hide-descendants' : 'auto'}
             >
               <HStack className="flex-wrap items-center gap-2">
-                <Badge
-                  label={
-                    form.row
-                      ? t('submittedAt', {
-                          when: new Date(form.row.updated_at).toLocaleString(locale, {
-                            dateStyle: 'medium',
-                            timeStyle: 'short'
-                          })
-                        })
-                      : t('notSubmitted')
-                  }
-                  tone={form.row ? 'ok' : 'warn'}
-                />
+                {(form.row || !rows.length) && (
+                  <Badge
+                    label={
+                      form.row
+                        ? t('submittedAt', { when: fmtStamp(form.row.updated_at, locale) })
+                        : holiday
+                          ? t('holidayBadge', { name: holiday })
+                          : dayOff
+                            ? t('dayOffBadge')
+                            : t('notSubmitted')
+                    }
+                    tone={form.row ? 'ok' : dayOff ? 'info' : 'warn'}
+                  />
+                )}
                 {form.draft && (
                   <>
                     <Badge label={t('draftKept')} tone="info" />
@@ -229,7 +275,7 @@ export default function Today(): React.JSX.Element {
                   </>
                 )}
               </HStack>
-              <Text accessibilityRole="header" className="mt-1 text-[16px] font-semibold text-fg">
+              <Text accessibilityRole="header" className="-mb-2 text-[16px] font-semibold text-fg">
                 {t('whatDidYouDo')}
               </Text>
               <Box onLayout={(e) => (editorY.current = e.nativeEvent.layout.y)}>
@@ -248,10 +294,11 @@ export default function Today(): React.JSX.Element {
                   typing={fit.typing}
                   minHeight={fit.rest}
                   onContentHeight={fit.onContentHeight}
-                  // At rest a drag on the editor scrolls the screen; only while typing does it scroll the writing area.
+                  onOverflow={fit.onOverflow}
+                  // At rest a drag on the editor scrolls the screen; it scrolls the writing area only once the text has outgrown it.
                   dom={{
-                    nestedScrollEnabled: fit.typing,
-                    scrollEnabled: fit.typing,
+                    nestedScrollEnabled: fit.scrollInside,
+                    scrollEnabled: fit.scrollInside,
                     style: { height: fit.height }
                   }}
                 />
@@ -262,12 +309,14 @@ export default function Today(): React.JSX.Element {
                 // Typing hours leaves the writing area, so a pending Write-in word converts now.
                 onFocus={() => editor.current?.blur()}
                 {...(hoursErr && { error: hoursErr })}
+                action={
+                  <Button onPress={submit} busy={save.state === 'saving'}>
+                    {t(form.row ? 'saveChanges' : 'submit')}
+                  </Button>
+                }
               />
               {save.state === 'error' && <Notice tone="bad">{t(save.message)}</Notice>}
-              <Button onPress={submit} busy={save.state === 'saving'}>
-                {t(form.row ? 'saveChanges' : 'submit')}
-              </Button>
-              {form.row && (
+              {rows.length > 0 && (
                 <Button variant="ghost" onPress={cancelEdit} disabled={save.state === 'saving'}>
                   {t('cancel')}
                 </Button>
@@ -276,36 +325,29 @@ export default function Today(): React.JSX.Element {
           </>
         )}
         {/* Covers the form while another date loads, so the editor's WebView stays mounted underneath. */}
-        {form && row.state === 'loading' && (
+        {form && day.state === 'loading' && (
           <Box className="absolute inset-0 bg-canvas">
             <FormSkeleton />
           </Box>
         )}
       </VStack>
 
-      <Text className="mt-4 text-[13px] font-semibold uppercase tracking-[0.8px] text-fg-2">
-        {t('recentUpdates')}
-      </Text>
+      <HStack className="mt-2 items-center justify-between gap-3">
+        <Text className="shrink text-[13px] font-semibold uppercase tracking-[0.8px] text-fg-2">
+          {t('recentUpdates')}
+        </Text>
+        <Link onPress={() => router.navigate('/history')}>{t('seeAll')}</Link>
+      </HStack>
       {recent.state === 'loading' ? (
-        <CardsSkeleton count={2} />
+        <CardsSkeleton count={1} />
       ) : recent.state === 'error' ? (
         <Notice tone="bad">{t(recent.message)}</Notice>
       ) : recent.data.length ? (
-        recent.data.map((st) => (
-          <StatusCard
-            key={st.id}
-            status={st}
-            actions={
-              // The selected date's card above has its own Edit.
-              st.date !== date &&
-              canChange(st.date, profile.role) && (
-                <Button variant="ghost" onPress={() => setDate(st.date, true)}>
-                  {t('edit')}
-                </Button>
-              )
-            }
-          />
-        ))
+        <Card className="gap-0 py-1">
+          {recent.data.map((st, i) => (
+            <StatusRow key={st.id} status={st} first={!i} />
+          ))}
+        </Card>
       ) : (
         <Notice>{t('nothingYet')}</Notice>
       )}
@@ -317,8 +359,7 @@ const FormSkeleton = (): React.JSX.Element => (
   <Loading>
     <Skeleton width={140} height={24} />
     <Skeleton width={180} height={18} />
-    <Skeleton width="100%" height={360} />
-    <Skeleton width="100%" height={48} />
+    <Skeleton width="100%" height={300} />
     <Skeleton width="100%" height={48} />
   </Loading>
 )

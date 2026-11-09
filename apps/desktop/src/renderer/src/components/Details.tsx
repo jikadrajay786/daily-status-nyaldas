@@ -6,18 +6,19 @@ import {
   type CommentTarget
 } from '@daily-status/core/commentService'
 import type { Comment } from '@daily-status/core/database.types'
-import { fmtAgo, initials } from '@daily-status/core/format'
+import { fmtAgo, fmtStamp, initials, ROLE_KEY } from '@daily-status/core/format'
 import { useT } from '@daily-status/core/i18n'
 import { useLiveQuery } from '@daily-status/core/live'
 import { getProfile, getStatus } from '@daily-status/core/statusService'
-import { getTask } from '@daily-status/core/taskService'
+import { getTask, managesTask } from '@daily-status/core/taskService'
+import { useDeleteTask } from '@daily-status/core/useTasks'
 import { Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { DetailsContext } from '../lib/details'
 import { CardsSkeleton } from './Skeletons'
 import { StatusCard } from './StatusCard'
-import { StatusPicker } from './Tasks/StatusPicker'
-import { People } from './Tasks/TaskBoard'
+import { Members } from './Tasks/Members'
+import { ShareButton } from './Tasks/ShareButton'
 import { TaskMeta } from './Tasks/TaskMeta'
 import { Avatar, Badge, Button, Card, Loading, Notice, Skeleton, TextArea } from './ui'
 import type { Profile } from '@daily-status/core/database.types'
@@ -40,7 +41,52 @@ const StatusDetails = ({ id, me }: { id: string; me: Profile }): React.JSX.Eleme
   )
 }
 
-const TaskDetails = ({ id, me }: { id: string; me: Profile }): React.JSX.Element => {
+// In-app confirm: window.confirm's OK/Cancel buttons stay in the OS language.
+const DeleteTask = ({
+  id,
+  onDeleted
+}: {
+  id: string
+  onDeleted: () => void
+}): React.JSX.Element => {
+  const { t } = useT()
+  const [confirming, setConfirming] = useState(false)
+  const { run, busy, error } = useDeleteTask()
+  return (
+    <div className="mt-4 flex flex-col gap-2 border-t border-line pt-4">
+      {confirming ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-auto text-sm text-bad-fg">{t('confirmDeleteTask')}</span>
+          <Button variant="ghost" onClick={() => setConfirming(false)}>
+            {t('cancel')}
+          </Button>
+          <Button
+            variant="danger"
+            busy={busy}
+            onClick={() => void run(id).then((res) => res && onDeleted())}
+          >
+            {t('yesDelete')}
+          </Button>
+        </div>
+      ) : (
+        <Button variant="danger" className="self-start" onClick={() => setConfirming(true)}>
+          {t('deleteTask')}
+        </Button>
+      )}
+      {error && <Notice tone="bad">{t(error)}</Notice>}
+    </div>
+  )
+}
+
+const TaskDetails = ({
+  id,
+  me,
+  onDeleted
+}: {
+  id: string
+  me: Profile
+  onDeleted: () => void
+}): React.JSX.Element => {
   const { t } = useT()
   const [q] = useLiveQuery(`task-details:${id}`, () => getTask(id))
   if (q.state === 'loading') return <CardsSkeleton count={1} />
@@ -54,10 +100,13 @@ const TaskDetails = ({ id, me }: { id: string; me: Profile }): React.JSX.Element
       {task.description && (
         <p className="mt-3 text-sm/relaxed whitespace-pre-line text-fg-2">{task.description}</p>
       )}
-      {/* Staff change the status here; admins see who it is given to. */}
-      <div className="mt-4 border-t border-line pt-4">
-        {me.role === 'admin' ? <People people={task.assignees} /> : <StatusPicker task={task} />}
+      <div className="mt-4 flex flex-col items-start gap-4 border-t border-line pt-4">
+        <div className="w-full">
+          <Members task={task} me={me.id} />
+        </div>
+        {managesTask(task, me) && <ShareButton task={task} />}
       </div>
+      {managesTask(task, me) && <DeleteTask id={task.id} onDeleted={onDeleted} />}
     </Card>
   )
 }
@@ -73,13 +122,10 @@ const CommentRow = ({ c, me }: { c: Comment; me: Profile }): React.JSX.Element =
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
           <span className="font-semibold text-fg">{mine ? t('you') : c.author_name}</span>
-          {c.author_role === 'admin' && <Badge label={t('roleAdmin')} tone="info" />}
+          {c.author_role !== 'user' && <Badge label={t(ROLE_KEY[c.author_role])} tone="info" />}
           <time
             dateTime={c.created_at}
-            title={new Date(c.created_at).toLocaleString(locale, {
-              dateStyle: 'medium',
-              timeStyle: 'short'
-            })}
+            title={fmtStamp(c.created_at, locale)}
             className="text-xs text-fg-3"
           >
             {fmtAgo(c.created_at, t, locale)}
@@ -151,7 +197,15 @@ const Composer = ({
   )
 }
 
-const Thread = ({ target, me }: { target: CommentTarget; me: Profile }): React.JSX.Element => {
+const Thread = ({
+  target,
+  me,
+  onClose
+}: {
+  target: CommentTarget
+  me: Profile
+  onClose: () => void
+}): React.JSX.Element => {
   const { t } = useT()
   const [comments] = useComments(target)
   const end = useRef<HTMLDivElement>(null)
@@ -168,7 +222,7 @@ const Thread = ({ target, me }: { target: CommentTarget; me: Profile }): React.J
         {target.kind === 'status' ? (
           <StatusDetails id={target.id} me={me} />
         ) : (
-          <TaskDetails id={target.id} me={me} />
+          <TaskDetails id={target.id} me={me} onDeleted={onClose} />
         )}
         <section aria-labelledby="comments-title" className="flex flex-col gap-4">
           <h3 id="comments-title" className="font-semibold text-fg">
@@ -241,7 +295,14 @@ export const DetailsProvider = ({
             <X aria-hidden className="size-5" />
           </button>
         </header>
-        {target && <Thread key={`${target.kind}:${target.id}`} target={target} me={me} />}
+        {target && (
+          <Thread
+            key={`${target.kind}:${target.id}`}
+            target={target}
+            me={me}
+            onClose={() => setTarget(null)}
+          />
+        )}
       </dialog>
     </DetailsContext>
   )

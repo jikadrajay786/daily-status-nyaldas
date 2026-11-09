@@ -25,6 +25,9 @@ export const daysBetween = (start: string, end: string): string[] =>
 
 // created_at is UTC; the local calendar day is what the person saw when they joined.
 export const localDay = (timestamp: string): string => ymd(new Date(timestamp))
+// A former admin owes updates only from the day they stopped being one.
+export const reportsFrom = (p: { created_at: string; reports_since: string | null }): string =>
+  localDay(p.reports_since ?? p.created_at)
 
 export type Preset = 'week' | 'month' | 'custom'
 export type Range = { start: string; end: string }

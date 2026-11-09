@@ -2,8 +2,9 @@ import { useState, type FormEvent } from 'react'
 import { useT, type Key } from '@daily-status/core/i18n'
 import { db } from '@daily-status/core/supabase'
 import { errMsg } from '@daily-status/core/useQuery'
-import { Check, Eye, EyeOff } from 'lucide-react'
+import { Check } from 'lucide-react'
 import { Logo } from './Logo'
+import { PasswordInput, ResetPassword } from './ResetPassword'
 import { Button, Field, Input, Notice, Tabs } from './ui'
 import { VerifyEmail } from './VerifyEmail'
 
@@ -11,36 +12,10 @@ type Mode = 'sign-in' | 'sign-up'
 type Phase =
   | { state: 'idle' }
   | { state: 'busy' }
+  | { state: 'changed' }
   | { state: 'error'; message: Key }
+  | { state: 'reset'; email: string }
   | { state: 'verify'; email: string; password: string; justSent: boolean }
-
-// A password box with a show/hide button, so people can check what they typed.
-const PasswordInput = ({ autoComplete }: { autoComplete: string }): React.JSX.Element => {
-  const { t } = useT()
-  const [shown, setShown] = useState(false)
-  return (
-    <div className="relative">
-      <Input
-        name="password"
-        type={shown ? 'text' : 'password'}
-        required
-        minLength={6}
-        autoComplete={autoComplete}
-        style={{ paddingInlineEnd: '2.75rem' }}
-      />
-      <button
-        type="button"
-        aria-label={t(shown ? 'hidePassword' : 'showPassword')}
-        aria-pressed={shown}
-        title={t(shown ? 'hidePassword' : 'showPassword')}
-        onClick={() => setShown(!shown)}
-        className="absolute inset-y-0 end-0 grid w-10 place-items-center rounded-e-lg text-fg-2 transition-colors duration-150 ease-enter hover:text-fg"
-      >
-        {shown ? <EyeOff aria-hidden className="size-4" /> : <Eye aria-hidden className="size-4" />}
-      </button>
-    </div>
-  )
-}
 
 export const AuthScreen = (): React.JSX.Element => {
   const { t } = useT()
@@ -123,6 +98,12 @@ export const AuthScreen = (): React.JSX.Element => {
               justSent={phase.justSent}
               onBack={() => setPhase({ state: 'idle' })}
             />
+          ) : phase.state === 'reset' ? (
+            <ResetPassword
+              initialEmail={phase.email}
+              onBack={() => setPhase({ state: 'idle' })}
+              onChanged={() => setPhase({ state: 'changed' })}
+            />
           ) : (
             <Tabs
               label="Daily Status"
@@ -162,6 +143,21 @@ export const AuthScreen = (): React.JSX.Element => {
                     autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
                   />
                 </Field>
+                {mode === 'sign-in' && (
+                  <button
+                    type="button"
+                    onClick={(e) =>
+                      setPhase({
+                        state: 'reset',
+                        email: String(new FormData(e.currentTarget.form!).get('email') ?? '').trim()
+                      })
+                    }
+                    className="self-end text-sm font-medium text-accent-fg hover:text-accent"
+                  >
+                    {t('forgotPassword')}
+                  </button>
+                )}
+                {phase.state === 'changed' && <Notice tone="ok">{t('passwordChanged')}</Notice>}
                 {phase.state === 'error' && <Notice tone="bad">{t(phase.message)}</Notice>}
                 <Button type="submit" busy={phase.state === 'busy'} className="py-2.5">
                   {t(mode === 'sign-in' ? 'signIn' : 'createAccount')}

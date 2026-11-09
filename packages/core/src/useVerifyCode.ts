@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from './database.types'
 import type { Key } from './i18n'
 import { db } from './supabase'
 import { errMsg } from './useQuery'
@@ -50,9 +52,12 @@ export type VerifyCode = {
   rejected: number
 }
 
-type Args = { email: string; password: string; justSent: boolean }
+export type Recovery = { client: SupabaseClient<Database>; onVerified: () => void }
+type Args = { email: string; justSent: boolean } & (
+  { password: string; recovery?: never } | { recovery: Recovery; password?: never }
+)
 
-export const useVerifyCode = ({ email, password, justSent }: Args): VerifyCode => {
+export const useVerifyCode = ({ email, password, justSent, recovery }: Args): VerifyCode => {
   const [code, setRaw] = useState('')
   const [phase, setPhase] = useState<VerifyPhase>({ state: 'idle' })
   const [sentAt, setSentAt] = useState(() => (justSent ? Date.now() : 0))
@@ -72,7 +77,7 @@ export const useVerifyCode = ({ email, password, justSent }: Args): VerifyCode =
   // closed). Supabase then "sends" new codes without sending anything, to hide which emails exist, so check
   // first: if the password signs in, the auth listener swaps in the app and no code is needed.
   const alreadyVerified = async (): Promise<boolean> =>
-    !(await db().auth.signInWithPassword({ email, password })).error
+    password !== undefined && !(await db().auth.signInWithPassword({ email, password })).error
 
   const fail = (message: Key): void => {
     inFlight.current = false
@@ -84,9 +89,14 @@ export const useVerifyCode = ({ email, password, justSent }: Args): VerifyCode =
     if (token.length !== CODE_LENGTH) return setPhase({ state: 'error', message: 'vCode' })
     inFlight.current = true
     setPhase({ state: 'checking' })
-    // On success the auth listener receives the session and replaces this screen; stay busy until it does.
-    const { error } = await db().auth.verifyOtp({ email, token, type: 'email' })
-    if (!error || (await alreadyVerified())) return
+    // On success the auth listener or onVerified replaces this screen; stay busy until it does.
+    const { error } = await (recovery?.client ?? db()).auth.verifyOtp({
+      email,
+      token,
+      type: recovery ? 'recovery' : 'email'
+    })
+    if (!error) return recovery?.onVerified()
+    if (await alreadyVerified()) return
     setRaw('')
     setRejected((n) => n + 1)
     fail(errMsg(error))
@@ -105,7 +115,9 @@ export const useVerifyCode = ({ email, password, justSent }: Args): VerifyCode =
     inFlight.current = true
     setPhase({ state: 'resending' })
     if (await alreadyVerified()) return
-    const { error } = await db().auth.resend({ type: 'signup', email })
+    const { error } = await (recovery
+      ? db().auth.resetPasswordForEmail(email)
+      : db().auth.resend({ type: 'signup', email }))
     if (error) {
       // Supabase's own limit was hit (e.g. a resend from another device): wait it out like a normal send.
       if (errMsg(error) === 'errRate') setSentAt(Date.now())

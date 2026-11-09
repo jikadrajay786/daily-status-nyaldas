@@ -77,25 +77,29 @@ export type EditorFit = {
   // The page's minimum height at rest, so a short update still gets a roomy box.
   rest: number
   typing: boolean
+  scrollInside: boolean
+  onOverflow: (over: boolean) => Promise<void>
   onEditorFocus: (focused: boolean, boxTop: number) => Promise<void>
   onContentHeight: (h: number) => Promise<void>
 }
 
 // Two modes. At rest the WebView grows with its text, so nothing scrolls inside it and a drag anywhere on it scrolls
 // the screen (the page sets nestedScrollEnabled from `typing`). While the writing area has focus and the keyboard is
-// up, the page instead sizes its box to exactly fill the space above the keyboard and scrolls inside it, and the
-// screen scrolls to that box: the cursor, toolbar and Write-in suggestions all stay in view.
+// up, the box keeps its size, shrinking only as far as the space above the keyboard, and the screen scrolls to it: the
+// cursor, toolbar and suggestions all stay in view. A drag still scrolls the screen until the text outgrows the box;
+// only then does it scroll the text instead (`scrollInside`), since one drag can't do both in a WebView.
 export const useEditorFit = (
   scroll: RefObject<ScrollViewInstance | null>,
   // Where the WebView starts in the screen's scroll content.
   editorY: () => number
 ): EditorFit => {
-  const { height } = useWindowDimensions()
+  const { height, fontScale } = useWindowDimensions()
   // Room between the top of the scroll view and the keyboard; 0 while the keyboard is down. Measured rather than
   // computed, so a navigation header above the screen (the admin edit screen) is accounted for.
   const [room, setRoom] = useState(0)
   const [boxTop, setBoxTop] = useState<number | null>(null)
   const [content, setContent] = useState(0)
+  const [overflowing, setOverflowing] = useState(false)
   useEffect(() => {
     const subs = [
       Keyboard.addListener('keyboardDidShow', (e) =>
@@ -114,11 +118,16 @@ export const useEditorFit = (
     const t = setTimeout(() => toBox(boxTop), 250)
     return () => clearTimeout(t)
   }, [typing, boxTop])
-  const rest = Math.round(Math.max(420, height * 0.6))
+  // Leaves room for hours and Submit on the first screen; large text needs a few more lines to stay usable.
+  const rest = Math.round(Math.min(380, Math.max(250, height * 0.38)) * Math.min(fontScale, 1.3))
   return {
-    height: typing ? boxTop + Math.max(200, room - 16) : Math.max(rest, content),
+    height: typing
+      ? boxTop + Math.min(Math.max(150, room - 16), Math.max(rest, content) - boxTop)
+      : Math.max(rest, content),
     rest,
     typing,
+    scrollInside: typing && overflowing,
+    onOverflow: async (over) => setOverflowing(over),
     onEditorFocus: async (focused, at) => setBoxTop(focused ? at : null),
     onContentHeight: async (h) => setContent(h)
   }
