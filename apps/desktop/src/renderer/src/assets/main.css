@@ -354,3 +354,14 @@
 dialog::backdrop {
   background: rgb(0 0 0 / 0.45);
 }
+
+/* A pinned header would leave no room to read at the largest text sizes or in a short window, so it scrolls there. */
+:root[data-size='2xl'] .page-top,
+:root[data-size='3xl'] .page-top {
+  position: static;
+}
+@media (max-height: 560px) {
+  .page-top {
+    position: static;
+  }
+}
