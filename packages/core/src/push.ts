@@ -6,40 +6,70 @@ import { db, unwrap } from './supabase'
 import { STATUS_KEY, TASK_STATUSES } from './taskService'
 
 // One place for what a push is about: the notify Edge Function sends `{ event, kind, id }` as the push's data, and
-// both apps open the update or task it names.
+// both apps open the update, task or leave page it names.
 export const PUSH_EVENTS = [
   'statusSubmitted',
   'taskStatus',
+  'taskDone',
   'taskAssigned',
   'taskReminder',
-  'comment'
+  'comment',
+  'leaveRequested',
+  'leaveApproved',
+  'leaveRejected',
+  'leaveCancelled',
+  'leaveTakenBack',
+  'signupWaiting'
 ] as const
 export type PushEvent = (typeof PUSH_EVENTS)[number]
-export type PushData = CommentTarget & { event: PushEvent }
+export type PushData = (
+  CommentTarget | { kind: 'leave'; id: string } | { kind: 'person'; id: string }
+) & { event: PushEvent }
 
 // Android lets people mute each channel in the phone's settings, so events are grouped the way staff think of them.
 export const PUSH_CHANNELS = {
   updates: 'pushUpdates',
   tasks: 'pushTasks',
-  comments: 'comments'
+  comments: 'comments',
+  leave: 'pushLeave',
+  people: 'pushPeople'
 } as const satisfies Record<string, Key>
 export type PushChannel = keyof typeof PUSH_CHANNELS
 export const channelOf: Record<PushEvent, PushChannel> = {
   statusSubmitted: 'updates',
   taskStatus: 'tasks',
+  taskDone: 'tasks',
   taskAssigned: 'tasks',
   taskReminder: 'tasks',
-  comment: 'comments'
+  comment: 'comments',
+  leaveRequested: 'leave',
+  leaveApproved: 'leave',
+  leaveRejected: 'leave',
+  leaveCancelled: 'leave',
+  leaveTakenBack: 'leave',
+  signupWaiting: 'people'
 }
 
 // The body is the update, task or comment text the trigger sends, unless the event has its own wording.
 export const PUSH_TEXT: Record<PushEvent, { title: Key; body?: Key }> = {
   statusSubmitted: { title: 'pushStatusTitle' },
   taskStatus: { title: 'pushTaskStatusTitle', body: 'pushTaskStatusBody' },
+  taskDone: { title: 'pushTaskDoneTitle' },
   taskAssigned: { title: 'pushTaskAssignedTitle' },
   taskReminder: { title: 'pushTaskReminderTitle' },
-  comment: { title: 'pushCommentTitle' }
+  comment: { title: 'pushCommentTitle' },
+  leaveRequested: { title: 'pushLeaveRequestedTitle' },
+  leaveApproved: { title: 'pushLeaveApprovedTitle' },
+  leaveRejected: { title: 'pushLeaveRejectedTitle' },
+  leaveCancelled: { title: 'pushLeaveCancelledTitle' },
+  leaveTakenBack: { title: 'pushLeaveTakenBackTitle' },
+  // The body is the person's name.
+  signupWaiting: { title: 'pushSignupTitle' }
 }
+
+// Which page a leave notification opens: what's waiting on the reader, or their own leave.
+export const leaveScreen = (event: string): 'requests' | 'mine' =>
+  event === 'leaveRequested' || event === 'leaveTakenBack' ? 'requests' : 'mine'
 
 type ServerText = Record<string, { title: string; body?: string | undefined }>
 export type PushServerConfig = {
@@ -113,19 +143,26 @@ export const useNotificationFeed = (userId: string, onNew: (n: AppNotification) 
 export const pushData = (raw: unknown): PushData | null => {
   const { event, kind, id } = (raw ?? {}) as Record<string, unknown>
   return PUSH_EVENTS.includes(event as PushEvent) &&
-    (kind === 'status' || kind === 'task') &&
+    (kind === 'status' || kind === 'task' || kind === 'leave' || kind === 'person') &&
     typeof id === 'string'
     ? { event: event as PushEvent, kind, id }
     : null
 }
 
+// `replies`: this build draws comment pushes itself with a Reply box, so the server may send them as data only.
 export const registerPushToken = async (
   token: string,
   platform: 'ios' | 'android',
-  lang: Lang
+  lang: Lang,
+  replies = false
 ): Promise<void> =>
   unwrap(
-    await db().rpc('register_push_token', { p_token: token, p_platform: platform, p_lang: lang })
+    await db().rpc('register_push_token', {
+      p_token: token,
+      p_platform: platform,
+      p_lang: lang,
+      p_replies: replies
+    })
   )
 
 export const unregisterPushToken = async (token: string): Promise<void> =>

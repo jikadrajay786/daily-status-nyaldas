@@ -48,7 +48,7 @@ export const Sidebar = ({ view, profile, onNavigate }: Props): React.JSX.Element
           type="button"
           disabled={leaving}
           aria-busy={leaving || undefined}
-          onClick={() => void leave(() => db().auth.signOut())}
+          onClick={() => void leave(() => db().auth.signOut({ scope: 'local' }))}
           className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-fg-2 hover:bg-hover hover:text-fg disabled:cursor-wait"
         >
           {leaving && <LoaderCircle aria-hidden className="size-4 animate-spin" />}
