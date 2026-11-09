@@ -1,12 +1,12 @@
 import { useT, type Key } from '@daily-status/core/i18n'
-import type { BoardTask } from '@daily-status/core/taskService'
+import type { SharedTask } from '@daily-status/core/taskService'
 import { shareText } from '@daily-status/core/taskShare'
 import { Copy, Hash, Mail, MessageSquareText, MoreHorizontal, Share2 } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type MouseEvent } from 'react'
 import type { ShareVia } from '../../../../shared/ipc'
 import { Button } from '../ui'
 
-const MAC = window.electron.process.platform === 'darwin'
+const MAC = window.api.platform === 'darwin'
 
 const CHOICES: { via: ShareVia; label: Key; icon: typeof Copy }[] = [
   { via: 'whatsapp', label: 'shareWhatsApp', icon: MessageSquareText },
@@ -19,7 +19,7 @@ const CHOICES: { via: ShareVia; label: Key; icon: typeof Copy }[] = [
 const SAID: Partial<Record<ShareVia, Key>> = { copy: 'shareCopied', slack: 'shareSlackCopied' }
 
 // Electron has no Web Share API, so this is our own menu; on a Mac "More…" opens the system share menu.
-export const ShareButton = ({ task }: { task: BoardTask }): React.JSX.Element => {
+export const ShareButton = ({ task }: { task: SharedTask }): React.JSX.Element => {
   const { t, locale } = useT()
   const id = useId()
   const menu = useRef<HTMLDivElement>(null)

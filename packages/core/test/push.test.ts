@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { channelOf, PUSH_EVENTS, pushData, pushServerConfig, pushText } from '../src/push'
+import {
+  channelOf,
+  leaveScreen,
+  PUSH_EVENTS,
+  pushData,
+  pushServerConfig,
+  pushText
+} from '../src/push'
 
 describe('push data', () => {
   const id = '6f1c2a4e-8b7d-4c3a-9e21-5d4f3a2b1c0d'
@@ -9,6 +16,30 @@ describe('push data', () => {
       event: 'taskAssigned',
       kind: 'task',
       id
+    })
+  })
+
+  it('reads leave pushes and picks their page', () => {
+    expect(pushData({ event: 'leaveApproved', kind: 'leave', id })).toEqual({
+      event: 'leaveApproved',
+      kind: 'leave',
+      id
+    })
+    expect(leaveScreen('leaveRequested')).toBe('requests')
+    expect(leaveScreen('leaveTakenBack')).toBe('requests')
+    for (const e of ['leaveApproved', 'leaveRejected', 'leaveCancelled'])
+      expect(leaveScreen(e)).toBe('mine')
+  })
+
+  it('reads a waiting sign-up and words it with the person’s name', () => {
+    expect(pushData({ event: 'signupWaiting', kind: 'person', id })).toEqual({
+      event: 'signupWaiting',
+      kind: 'person',
+      id
+    })
+    expect(pushText({ event: 'signupWaiting', vars: { text: 'Asha' } }, 'en')).toEqual({
+      title: 'New account waiting for approval',
+      body: 'Asha'
     })
   })
 
@@ -47,5 +78,15 @@ export const PUSH = ${JSON.stringify(pushServerConfig(), null, 2)} as const
       pushText({ event: 'statusSubmitted', vars: { name: 'Jay', text: '  Did   it ' } }, 'en')?.body
     ).toBe('Did it')
     expect(pushText({ event: 'somethingNew', vars: {} }, 'en')).toBeNull()
+    expect(
+      pushText(
+        { event: 'leaveRequested', vars: { name: 'Jay', text: '16/11: Family function' } },
+        'gu'
+      )
+    ).toEqual({ title: 'Jay એ રજા માંગી', body: '16/11: Family function' })
+    expect(pushText({ event: 'leaveApproved', vars: { text: '16/11: Enjoy' } }, 'en')).toEqual({
+      title: 'Your leave was approved',
+      body: '16/11: Enjoy'
+    })
   })
 })

@@ -8,7 +8,7 @@ import {
   dueFromDay,
   listPeople,
   type Assignee,
-  type BoardTask
+  type SharedTask
 } from '@daily-status/core/taskService'
 import { useLiveQuery } from '@daily-status/core/live'
 import { useCreateTask } from '@daily-status/core/useTasks'
@@ -137,17 +137,21 @@ const PeopleList = ({
 
 export const TaskForm = ({
   role,
+  open,
   onCreated
 }: {
   role: Role
+  // Stays mounted while closed, so what's typed survives closing.
+  open: boolean
   onCreated: () => void
-}): React.JSX.Element => {
+}): React.JSX.Element | null => {
   const { t } = useT()
   const [people] = useLiveQuery(`task-people:${role}`, () => listPeople(role))
   const { run, busy, error } = useCreateTask()
   const [form, setForm] = useState(EMPTY)
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
-  const [created, setCreated] = useState<BoardTask | null>(null)
+  const [created, setCreated] = useState<SharedTask | null>(null)
+  if (!open && created) setCreated(null)
   const set = (k: keyof typeof EMPTY) => (e: { currentTarget: { value: string } }) =>
     setForm({ ...form, [k]: e.currentTarget.value })
 
@@ -171,11 +175,12 @@ export const TaskForm = ({
     onCreated()
   }
 
-  return (
+  return open ? (
     <Card title={t('newTask')}>
       <form onSubmit={submit} onKeyDown={submitOnShortcut} className="flex flex-col gap-4">
         <Field label={t('taskTitle')}>
           <Input
+            autoFocus
             required
             maxLength={200}
             value={form.title}
@@ -219,5 +224,5 @@ export const TaskForm = ({
         </div>
       </form>
     </Card>
-  )
+  ) : null
 }

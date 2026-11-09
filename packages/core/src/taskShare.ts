@@ -1,9 +1,9 @@
 import { fmtDate, nameOf } from './format'
 import type { T } from './i18n'
-import { STATUS_KEY, dueDay, type BoardTask } from './taskService'
+import { STATUS_KEY, dueDay, type SharedTask } from './taskService'
 
 // Plain text for chat apps; WhatsApp and Slack both read *x* as bold.
-export const shareText = (task: BoardTask, t: T, locale: string): string =>
+export const shareText = (task: SharedTask, t: T, locale: string): string =>
   [
     `📌 *${task.title.trim()}*`,
     `${t('taskAssignedTo')}: ${task.assignees.map(nameOf).join(', ')}`,

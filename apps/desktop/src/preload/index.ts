@@ -1,10 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { electronAPI } from '@electron-toolkit/preload'
 import { IPC, type Api, type SizeStep } from '../shared/ipc'
 
 // Narrow, typed surface. Never expose ipcRenderer itself to the renderer.
 const api: Api = {
+  platform: process.platform,
   ping: () => ipcRenderer.invoke(IPC.ping),
+  sessionGet: (key) => ipcRenderer.invoke(IPC.sessionGet, key),
+  sessionSet: (key, value) => ipcRenderer.invoke(IPC.sessionSet, key, value),
+  sessionRemove: (key) => ipcRenderer.invoke(IPC.sessionRemove, key),
   getAppVersion: () => ipcRenderer.invoke(IPC.getAppVersion),
   notify: (title, body, open) => ipcRenderer.invoke(IPC.notify, title, body, open),
   setTheme: (theme) => ipcRenderer.invoke(IPC.setTheme, theme),
@@ -21,5 +24,4 @@ const api: Api = {
   }
 }
 
-contextBridge.exposeInMainWorld('electron', electronAPI)
 contextBridge.exposeInMainWorld('api', api)

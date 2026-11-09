@@ -1,3 +1,4 @@
+import { usePaged } from '@daily-status/core/usePaged'
 import { useCommentCounts } from '@daily-status/core/commentService'
 import { CalendarX, SearchX } from 'lucide-react-native'
 import { useBusy } from '@daily-status/core/useBusy'
@@ -13,6 +14,7 @@ import {
   fmtHours,
   fmtShort,
   initials,
+  isLead,
   nameOf,
   ROLE_KEY,
   ROLE_TONE
@@ -33,7 +35,7 @@ import {
 import { router, Stack, useLocalSearchParams } from 'expo-router'
 import { Flame } from 'lucide-react-native'
 import { useState } from 'react'
-import { FlatList, RefreshControl } from 'react-native'
+import { RefreshControl } from 'react-native'
 import { withUniwind } from 'uniwind'
 import { Box } from '@/components/gs/box'
 import { HStack } from '@/components/gs/hstack'
@@ -41,9 +43,12 @@ import { Text } from '@/components/gs/text'
 import { VStack } from '@/components/gs/vstack'
 import { DateField } from '@/components/DateField'
 import { Openable } from '@/components/Openable'
+import { RolePicker } from '@/components/RolePicker'
 import { CardsSkeleton, StatusCard } from '@/components/StatusCard'
 import { SubmissionCalendar } from '@/components/SubmissionCalendar'
 import {
+  ListScreen,
+  LoadMore,
   Avatar,
   Badge,
   Button,
@@ -56,7 +61,7 @@ import {
   Stat,
   Empty
 } from '@/components/ui'
-import { useTabBarInset } from '@/lib/tabBar'
+import { useProfile } from '@/lib/profile'
 import { usePullToRefresh } from '@/lib/refresh'
 import { uuidParam } from '@/lib/route'
 
@@ -75,6 +80,7 @@ const PRESETS: readonly [Preset, Key][] = [
 
 export default function Person(): React.JSX.Element {
   const { t, locale } = useT()
+  const { id: me, role: myRole } = useProfile()
   const id = uuidParam(useLocalSearchParams<{ id: string }>().id)
   const now = today()
   const [preset, setPreset] = useState<Preset>('month')
@@ -88,19 +94,18 @@ export default function Person(): React.JSX.Element {
   const [metrics, , r2] = useLiveQuery(`umetrics:${key}`, () =>
     id ? getIndividualUserMetrics(id, range.start, range.end) : Promise.resolve(null)
   )
-  const [history, , r3] = useLiveQuery(`uhistory:${key}:${q}`, () =>
-    id ? getIndividualUserHistory(id, range.start, range.end, q) : Promise.resolve([])
+  const [history, , r3] = usePaged(`uhistory:${key}:${q}`, (limit, offset) =>
+    id
+      ? getIndividualUserHistory(id, range.start, range.end, q, limit, offset)
+      : Promise.resolve({ rows: [], total: 0, more: false })
   )
-  const counts = useCommentCounts(
-    'status',
-    history.state === 'ok' ? history.data.map((st) => st.id) : []
-  )
+  const page = history.state === 'ok' ? history.data : null
+  const counts = useCommentCounts('status', page ? page.rows.map((st) => st.id) : [])
   const [streak, , r4] = useLiveQuery(`streak:${id}`, () =>
     id ? getUserStreak(id) : Promise.resolve(0)
   )
   const loading =
     [dir, metrics, history, streak].some((x) => x.state === 'loading') || r1 || r2 || r3 || r4
-  const inset = useTabBarInset()
   const pull = usePullToRefresh(loading, bumpLive)
   const [confirming, setConfirming] = useState<string>()
   const [deleting, runDelete] = useBusy()
@@ -109,6 +114,7 @@ export default function Person(): React.JSX.Element {
   const person = dir.state === 'ok' ? dir.data.find((p) => p.id === id) : undefined
   const m = metrics.state === 'ok' ? metrics.data : null
   const name = person ? nameOf(person) : ''
+  const isAdmin = person?.role === 'admin'
 
   // Unknown, malformed or no-longer-visible ids get a plain notice rather than an error screen.
   if (!id || (dir.state === 'ok' && !person))
@@ -137,16 +143,38 @@ export default function Person(): React.JSX.Element {
     })
 
   return (
-    <Box className="flex-1 bg-canvas">
+    <>
       {/* Set only once known, so a refresh doesn't blank the title. */}
       {person && <Stack.Screen options={{ title: name }} />}
-      <FlatList
-        data={history.state === 'ok' ? history.data : []}
+      <ListScreen
+        underHeader
+        data={isAdmin ? [] : (page?.rows ?? [])}
+        onEndReached={isAdmin ? undefined : page?.older}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={page && !isAdmin ? <LoadMore page={page} /> : undefined}
         keyExtractor={(st) => st.id}
         contentContainerClassName="gap-3 p-4"
-        contentContainerStyle={{ paddingBottom: inset }}
-        keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl {...pull} />}
+        header={
+          isAdmin ? undefined : (
+            <>
+              <Segmented
+                label={t('period')}
+                options={PRESETS.map(([p, k]) => [p, t(k)] as const)}
+                value={preset}
+                onChange={pick}
+              />
+              <Field
+                label={t('search')}
+                hideLabel
+                value={search}
+                onChangeText={setSearch}
+                placeholder={t('searchUpdates')}
+                autoCorrect={false}
+              />
+            </>
+          )
+        }
         ListHeaderComponent={
           <VStack className="mb-1 gap-4">
             {dir.state === 'error' && <Notice tone="bad">{t(dir.message)}</Notice>}
@@ -175,105 +203,105 @@ export default function Person(): React.JSX.Element {
                   <Skeleton width={140} />
                 </Loading>
               )}
-              <HStack className="flex-wrap gap-3">
-                <Stat
-                  label={t('totalDays')}
-                  value={person?.submissions ?? '–'}
-                  sub={t('totalDaysSub')}
-                  loading={!person}
-                />
-                <Stat
-                  label={t('streak')}
-                  value={streak.state === 'ok' ? streak.data : '–'}
-                  icon={<FlameIcon size={20} colorClassName="accent-warn-fg" />}
-                  sub={t('streakDays')}
-                  loading={streak.state === 'loading'}
-                />
-              </HStack>
-            </Card>
-
-            <Card>
-              <Text className="text-[14px] font-medium text-fg-2">{t('period')}</Text>
-              <Segmented
-                label={t('period')}
-                options={PRESETS.map(([p, k]) => [p, t(k)] as const)}
-                value={preset}
-                onChange={pick}
-              />
-              {preset === 'custom' && (
-                <VStack className="gap-3">
-                  <DateField
-                    label={t('from')}
-                    value={custom.start}
-                    min={addDays(range.end, 1 - MAX_RANGE_DAYS)}
-                    max={range.end}
-                    onChange={(start) => setCustom((r) => ({ ...r, start }))}
+              {!isAdmin && (
+                <HStack className="flex-wrap gap-3">
+                  <Stat
+                    label={t('totalDays')}
+                    value={person?.submissions ?? '–'}
+                    sub={t('totalDaysSub')}
+                    loading={!person}
                   />
-                  <DateField
-                    label={t('to')}
-                    value={custom.end}
-                    min={range.start}
-                    max={now}
-                    onChange={(end) => setCustom((r) => ({ ...r, end }))}
+                  <Stat
+                    label={t('streak')}
+                    value={streak.state === 'ok' ? streak.data : '–'}
+                    icon={<FlameIcon size={20} colorClassName="accent-warn-fg" />}
+                    sub={t('streakDays')}
+                    loading={streak.state === 'loading'}
                   />
-                  <Text className="text-[13px] text-fg-3">{t('rangeHint')}</Text>
-                </VStack>
+                </HStack>
               )}
-              <Field
-                label={t('search')}
-                value={search}
-                onChangeText={setSearch}
-                placeholder={t('searchUpdates')}
-                autoCorrect={false}
-              />
-            </Card>
-
-            {metrics.state === 'error' && <Notice tone="bad">{t(metrics.message)}</Notice>}
-            <HStack className="flex-wrap gap-3">
-              <Stat
-                loading={metrics.state === 'loading'}
-                label={t('hoursWorked')}
-                value={m ? fmtHours(m.hours, t) : '–'}
-                sub={t('hoursInPeriodSub')}
-              />
-              <Stat
-                loading={metrics.state === 'loading'}
-                label={t('daysSubmitted')}
-                value={m?.submitted ?? '–'}
-                // Green only when there were days to submit on: "0 of 0" isn't an achievement.
-                tone={m?.workdays && m.submitted === m.workdays ? 'ok' : 'idle'}
-                {...(m && { sub: t('ofWorkdays', { n: m.workdays }) })}
-              />
-              <Stat
-                loading={metrics.state === 'loading'}
-                label={t('missedDays')}
-                value={m?.missing.length ?? '–'}
-                tone={m?.missing.length ? 'bad' : 'idle'}
-                sub={t('missedDaysSub')}
-              />
-            </HStack>
-
-            <Card>
-              <Text accessibilityRole="header" className={SECTION}>
-                {t('calendar')}
-              </Text>
-              {m ? (
-                <SubmissionCalendar days={m.days} holidays={m.holidays} />
-              ) : (
-                <Loading>
-                  <Skeleton width="100%" height={220} />
-                </Loading>
+              {person && myRole === 'admin' && (
+                <RolePicker
+                  person={person}
+                  me={me}
+                  leads={dir.state === 'ok' ? dir.data.filter((p) => isLead(p.role)) : []}
+                />
               )}
             </Card>
 
-            <Text accessibilityRole="header" className={SECTION}>
-              {t('updatesInPeriod')}
-            </Text>
-            {error && <Notice tone="bad">{t(error)}</Notice>}
+            {isAdmin && <Notice>{t('roleAdminNoUpdates')}</Notice>}
+            {!isAdmin && (
+              <>
+                {preset === 'custom' && (
+                  <Card>
+                    <VStack className="gap-3">
+                      <DateField
+                        label={t('from')}
+                        value={custom.start}
+                        min={addDays(range.end, 1 - MAX_RANGE_DAYS)}
+                        max={range.end}
+                        onChange={(start) => setCustom((r) => ({ ...r, start }))}
+                      />
+                      <DateField
+                        label={t('to')}
+                        value={custom.end}
+                        min={range.start}
+                        max={now}
+                        onChange={(end) => setCustom((r) => ({ ...r, end }))}
+                      />
+                      <Text className="text-[13px] text-fg-3">{t('rangeHint')}</Text>
+                    </VStack>
+                  </Card>
+                )}
+
+                {metrics.state === 'error' && <Notice tone="bad">{t(metrics.message)}</Notice>}
+                <HStack className="flex-wrap gap-3">
+                  <Stat
+                    loading={metrics.state === 'loading'}
+                    label={t('hoursWorked')}
+                    value={m ? fmtHours(m.hours, t) : '–'}
+                    sub={t('hoursInPeriodSub')}
+                  />
+                  <Stat
+                    loading={metrics.state === 'loading'}
+                    label={t('daysSubmitted')}
+                    value={m?.submitted ?? '–'}
+                    // Green only when there were days to submit on: "0 of 0" isn't an achievement.
+                    tone={m?.workdays && m.submitted === m.workdays ? 'ok' : 'idle'}
+                    {...(m && { sub: t('ofWorkdays', { n: m.workdays }) })}
+                  />
+                  <Stat
+                    loading={metrics.state === 'loading'}
+                    label={t('missedDays')}
+                    value={m?.missing.length ?? '–'}
+                    tone={m?.missing.length ? 'bad' : 'idle'}
+                    sub={t('missedDaysSub')}
+                  />
+                </HStack>
+
+                <Card>
+                  <Text accessibilityRole="header" className={SECTION}>
+                    {t('calendar')}
+                  </Text>
+                  {m ? (
+                    <SubmissionCalendar days={m.days} holidays={m.holidays} />
+                  ) : (
+                    <Loading>
+                      <Skeleton width="100%" height={220} />
+                    </Loading>
+                  )}
+                </Card>
+
+                <Text accessibilityRole="header" className={SECTION}>
+                  {t('updatesInPeriod')}
+                </Text>
+                {error && <Notice tone="bad">{t(error)}</Notice>}
+              </>
+            )}
           </VStack>
         }
         ListEmptyComponent={
-          history.state === 'loading' ? (
+          isAdmin ? undefined : history.state === 'loading' ? (
             <CardsSkeleton />
           ) : history.state === 'error' ? (
             <Notice tone="bad">{t(history.message)}</Notice>
@@ -300,8 +328,8 @@ export default function Person(): React.JSX.Element {
                 status={st}
                 comments={counts[st.id]}
                 actions={
-                  // In-app confirm: the system Alert's buttons would follow the phone's language, not the app's.
-                  confirming === st.id ? (
+                  // Store and agency managers read their staff's updates but can't change them.
+                  myRole !== 'admin' ? undefined : confirming === st.id ? ( // In-app confirm: the system Alert's buttons would follow the phone's language, not the app's.
                     <>
                       <Text className="basis-full text-right text-[15px] text-bad-fg">
                         {t('confirmDelete')}
@@ -337,6 +365,6 @@ export default function Person(): React.JSX.Element {
           </Box>
         )}
       />
-    </Box>
+    </>
   )
 }

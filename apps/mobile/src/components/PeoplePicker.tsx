@@ -29,6 +29,8 @@ export const PeoplePicker = ({
 }): React.JSX.Element => {
   const { t } = useT()
   const [q, setQ] = useState('')
+  // Most people search; drawing thousands of rows at once would freeze the form.
+  const [shown, setShown] = useState(50)
   const needle = q.trim().toLowerCase()
   const rows = people.filter((p) => matches(p, needle))
   const chosen = people.filter((p) => picked.has(p.id))
@@ -91,7 +93,7 @@ export const PeoplePicker = ({
           </Pressable>
         )}
         {rows.length ? (
-          rows.map((p, i) => {
+          rows.slice(0, shown).map((p, i) => {
             const on = picked.has(p.id)
             return (
               <Pressable
@@ -125,6 +127,17 @@ export const PeoplePicker = ({
           <Text className="px-4 py-3.5 text-[15px] text-fg-2">
             {people.length ? t('noPeopleMatch', { q: q.trim() }) : t('taskPeopleEmpty')}
           </Text>
+        )}
+        {rows.length > shown && (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setShown((n) => n + 50)}
+            className="min-h-12 items-center justify-center border-t border-line"
+          >
+            <Text className="text-[15px] font-semibold text-accent-fg android:font-bold">
+              {t('showMoreTasks', { n: Math.min(50, rows.length - shown) })}
+            </Text>
+          </Pressable>
         )}
       </VStack>
     </VStack>

@@ -52,16 +52,19 @@ export const UserDirectoryList = ({ dir, selected, onSelect }: Props): React.JSX
                 >
                   <Avatar text={initials(p)} />
                   <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-2">
+                    {/* Wraps, so a long role name moves down rather than squeezing the person's name. */}
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                       <span className="truncate text-sm font-medium text-fg">{nameOf(p)}</span>
                       <Badge label={t(ROLE_KEY[p.role])} tone={ROLE_TONE[p.role]} />
                     </span>
                     <span className="block truncate text-xs text-fg-3">{p.email}</span>
-                    <span className="block text-xs text-fg-2">
-                      {p.lastDate
-                        ? `${t('updatesCount', { n: p.submissions })} · ${t('lastUpdate', { date: fmtShort(p.lastDate, locale) })}`
-                        : t('noUpdatesYet')}
-                    </span>
+                    {p.role !== 'admin' && (
+                      <span className="block text-xs text-fg-2">
+                        {p.lastDate
+                          ? `${t(p.updates === 1 ? 'updatesCountOne' : 'updatesCount', { n: p.updates })} · ${t('lastUpdate', { date: fmtShort(p.lastDate, locale) })}`
+                          : t('noUpdatesYet')}
+                      </span>
+                    )}
                   </span>
                 </button>
               </li>

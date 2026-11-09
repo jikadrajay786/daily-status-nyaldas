@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { canChange, wasEdited } from '../src/statusService'
+import { translator } from '../src/i18n'
+import { canChange, fmtStatusTimes, wasEdited } from '../src/statusService'
 
 describe('edit window', () => {
   const wed = '2026-10-21'
@@ -24,4 +25,17 @@ describe('edited tag', () => {
     expect(at('2026-10-21T10:00:00Z', '2026-10-21T10:05:00Z')).toBe(true)
     expect(at('2026-10-21T10:00:00Z', '2026-10-22T09:00:00Z')).toBe(true)
   })
+})
+
+describe('update times', () => {
+  const t = translator('en')
+  const created_at = '2026-10-21T04:00:00Z'
+  it('shows only the submit time until it is edited', () =>
+    expect(fmtStatusTimes({ created_at, updated_at: created_at }, t, 'en-IN')).toMatch(
+      /^Submitted 21 Oct 2026, 9:30\s?am$/i
+    ))
+  it('adds the edit time', () =>
+    expect(fmtStatusTimes({ created_at, updated_at: '2026-10-22T05:30:00Z' }, t, 'en-IN')).toMatch(
+      /· Edited 22 Oct 2026, 11:00\s?am$/i
+    ))
 })

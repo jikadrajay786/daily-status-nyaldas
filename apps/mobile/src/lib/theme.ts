@@ -1,3 +1,4 @@
+import type { Key } from '@daily-status/core/i18n'
 import { createContext, use } from 'react'
 import type { Tone } from '@daily-status/core/format'
 import type { Accent, Colors, Theme } from '@daily-status/core/palettes'
@@ -50,4 +51,19 @@ export const useTheme = (): ThemeCtx => {
   const ctx = use(ThemeContext)
   if (!ctx) throw new Error('useTheme must be used inside ThemeContext')
   return ctx
+}
+
+export const THEME_TEXT: Record<Theme, readonly [Key, Key]> = {
+  system: ['themePhone', 'themePhoneHint'],
+  light: ['themeLight', 'themeLightHint'],
+  dark: ['themeDark', 'themeDarkHint'],
+  midnight: ['themeMidnight', 'themeMidnightHint']
+}
+export const ACCENT_TEXT: Record<Accent, Key> = {
+  indigo: 'accentIndigo',
+  emerald: 'accentEmerald',
+  blue: 'accentBlue',
+  purple: 'accentPurple',
+  amber: 'accentAmber',
+  cyan: 'accentCyan'
 }

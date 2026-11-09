@@ -1,10 +1,11 @@
 import { translator, type Lang } from '@daily-status/core/i18n'
-import { PUSH_CHANNELS, pushData } from '@daily-status/core/push'
+import { leaveScreen, PUSH_CHANNELS, pushData } from '@daily-status/core/push'
 import { today } from '@daily-status/core/supabase'
 import * as N from 'expo-notifications'
 import { router } from 'expo-router'
 import { useEffect } from 'react'
 import { Platform } from 'react-native'
+import { handleReply } from './commentReply'
 import { detailsHref } from './quickComment'
 import { prefs } from './storage'
 
@@ -13,13 +14,17 @@ export const REMINDER_CHANNEL = 'reminder'
 export const REMINDER_PREFIX = 'reminder-'
 
 // Shown even with the app open: being in the app doesn't mean today's update is written or a new task was seen.
+// A data-only push has no words of its own; the reply task draws it.
 N.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false
-  })
+  handleNotification: async ({ request: { content } }) => {
+    const show = !!(content.title || content.body)
+    return {
+      shouldShowBanner: show,
+      shouldShowList: show,
+      shouldPlaySound: show,
+      shouldSetBadge: false
+    }
+  }
 })
 
 // Android 13+ only shows the permission prompt once a channel exists; names follow the app's language.
@@ -53,11 +58,18 @@ export const firstAsk = (lang: Lang): Promise<boolean> =>
 
 const open = (res: N.NotificationResponse | null): void => {
   if (!res) return
+  if (handleReply(res)) return N.clearLastNotificationResponse()
   const { identifier, content } = res.notification.request
   const push = pushData(content.data)
   const href = identifier.startsWith(REMINDER_PREFIX)
     ? ({ pathname: '/', params: { date: today() } } as const)
-    : push && detailsHref(push)
+    : push?.kind === 'person'
+      ? '/team'
+      : push?.kind === 'leave'
+        ? leaveScreen(push.event) === 'requests'
+          ? '/leave/requests'
+          : '/leave'
+        : push && detailsHref(push)
   if (!href) return
   // Otherwise every remount of the signed-in layout would see the same cold-start tap and jump there again.
   N.clearLastNotificationResponse()

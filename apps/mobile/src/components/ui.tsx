@@ -1,17 +1,23 @@
+import type { Paged } from '@daily-status/core/usePaged'
 import type { Tone } from '@daily-status/core/format'
 import { useT } from '@daily-status/core/i18n'
-import { useEffect, useState, type ReactNode, type Ref } from 'react'
+import { useContext, useEffect, useRef, useState, type ReactNode, type Ref } from 'react'
 import {
   Animated,
+  FlatList,
+  useWindowDimensions,
+  type FlatListProps,
   KeyboardAvoidingView,
   ScrollView,
   type ScrollViewInstance,
   type ScrollViewProps,
   type TextInputInstance,
-  type TextInputProps
+  type TextInputProps,
+  type ViewInstance
 } from 'react-native'
 import { Eye, EyeOff } from 'lucide-react-native'
 import { SafeAreaView as RNSafeAreaView } from 'react-native-safe-area-context'
+import { HeaderHeightContext } from 'expo-router/react-navigation'
 import { withUniwind } from 'uniwind'
 import { Avatar as GsAvatar } from '@/components/gs/avatar'
 import { Badge as GsBadge, BadgeText } from '@/components/gs/badge'
@@ -33,14 +39,46 @@ const SafeAreaView = withUniwind(RNSafeAreaView)
 const EyeIcon = withUniwind(Eye)
 const EyeOffIcon = withUniwind(EyeOff)
 
+// A pinned header would leave no room to read with very large text or on a short screen, so it scrolls there.
+const usePinned = (): boolean => {
+  const { fontScale, height } = useWindowDimensions()
+  return fontScale <= 1.5 && height >= 560
+}
+
+// iOS draws a stack header over the screen and Android above it, so measure how much of this bar it would cover.
+const HeaderBar = ({
+  underHeader = false,
+  children
+}: {
+  underHeader?: boolean
+  children: ReactNode
+}): React.JSX.Element => {
+  const header = useContext(HeaderHeightContext) ?? 0
+  const ref = useRef<ViewInstance>(null)
+  const [y, setY] = useState(header)
+  return (
+    <Box
+      ref={ref}
+      onLayout={() => underHeader && ref.current?.measureInWindow((_, top) => setY(top))}
+      style={{ paddingTop: 16 + (underHeader ? Math.max(0, header - y) : 0) }}
+      className="gap-4 border-b border-line bg-canvas px-6 pb-3"
+    >
+      {children}
+    </Box>
+  )
+}
+
 export const Screen = ({
   children,
   center,
   scrollRef,
   refreshControl,
-  underHeader = false
+  underHeader = false,
+  header
 }: {
   children: ReactNode
+  // Title and filters, kept in place above the scrolling content.
+  header?: ReactNode
   center?: boolean
   // A stack header already clears the status bar.
   underHeader?: boolean
@@ -48,6 +86,7 @@ export const Screen = ({
   refreshControl?: ScrollViewProps['refreshControl']
 }): React.JSX.Element => {
   const inset = useTabBarInset()
+  const pinned = usePinned()
   return (
     // Bottom is left out: inside the tabs the content pads to clear the floating bar instead.
     <SafeAreaView
@@ -56,13 +95,17 @@ export const Screen = ({
     >
       {/* Android draws edge to edge, so the window no longer resizes for the keyboard: pad on both platforms. */}
       <KeyboardAvoidingView className="flex-1" behavior="padding">
+        {header && pinned && <HeaderBar underHeader={underHeader}>{header}</HeaderBar>}
         <ScrollView
           ref={scrollRef}
           refreshControl={refreshControl}
+          // iOS draws the stack header over the content, so a screen under one has to inset itself.
+          contentInsetAdjustmentBehavior={underHeader ? 'automatic' : undefined}
           contentContainerClassName={`grow gap-4 p-6 ${center ? 'w-full max-w-[440px] self-center justify-center' : ''}`}
           contentContainerStyle={{ paddingBottom: inset || undefined }}
           keyboardShouldPersistTaps="handled"
         >
+          {!pinned && header}
           {children}
         </ScrollView>
       </KeyboardAvoidingView>
@@ -73,21 +116,26 @@ export const Screen = ({
 export const Title = ({
   children,
   sub,
-  center
+  center,
+  action
 }: {
   children: string
   sub?: string
   center?: boolean
+  action?: ReactNode
 }): React.JSX.Element => (
-  <VStack className="gap-1">
-    <Heading
-      accessibilityRole="header"
-      className={`text-[22px] font-semibold text-fg ${center ? 'text-center' : ''}`}
-    >
-      {children}
-    </Heading>
-    {sub && <Text className={`text-[15px] text-fg-2 ${center ? 'text-center' : ''}`}>{sub}</Text>}
-  </VStack>
+  <HStack className="items-center gap-3">
+    <VStack className="flex-1 gap-1">
+      <Heading
+        accessibilityRole="header"
+        className={`text-[22px] font-semibold text-fg ${center ? 'text-center' : ''}`}
+      >
+        {children}
+      </Heading>
+      {sub && <Text className={`text-[15px] text-fg-2 ${center ? 'text-center' : ''}`}>{sub}</Text>}
+    </VStack>
+    {action}
+  </HStack>
 )
 
 const BUTTON = {
@@ -299,8 +347,16 @@ export const Loading = ({ children }: { children: ReactNode }): React.JSX.Elemen
   )
 }
 
-export const Card = ({ children }: { children: ReactNode }): React.JSX.Element => (
-  <GsCard className="gap-3 rounded-[14px] border-line bg-card p-4 shadow-none">{children}</GsCard>
+export const Card = ({
+  className = '',
+  children
+}: {
+  className?: string
+  children: ReactNode
+}): React.JSX.Element => (
+  <GsCard className={`gap-3 rounded-[14px] border-line bg-card p-4 shadow-none ${className}`}>
+    {children}
+  </GsCard>
 )
 
 // gluestack's AvatarFallbackText takes charAt(0) of each word, which splits Hindi/Gujarati conjuncts, so the
@@ -330,7 +386,9 @@ export const Stat = ({
   tone = 'idle',
   loading = false,
   icon,
-  compact = false
+  compact = false,
+  onPress,
+  selected = false
 }: {
   label: string
   value: string | number
@@ -341,32 +399,51 @@ export const Stat = ({
   icon?: ReactNode
   // Three to a row on a phone.
   compact?: boolean
-}): React.JSX.Element => (
-  <VStack
-    className={`grow gap-1 rounded-[14px] border border-line bg-card p-3.5 ${compact ? 'basis-[90px]' : 'basis-[150px]'}`}
-  >
-    <Text className="text-[13px] font-medium text-fg-2">{label}</Text>
-    {loading ? (
-      <Loading>
-        <Skeleton width={56} height={26} />
-      </Loading>
-    ) : (
-      <HStack className="items-center gap-1">
-        {icon && (
-          <Box accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-            {icon}
-          </Box>
-        )}
-        <Text
-          className={`text-[24px] font-semibold tabular-nums ${tone === 'idle' ? 'text-fg' : TONE_TEXT[tone]}`}
-        >
-          {value}
-        </Text>
-      </HStack>
-    )}
-    {sub && <Text className="text-[12px] text-fg-3">{sub}</Text>}
-  </VStack>
-)
+  // Makes the tile a toggle, e.g. a filter.
+  onPress?: () => void
+  selected?: boolean
+}): React.JSX.Element => {
+  const basis = compact ? 'basis-[90px]' : 'basis-[150px]'
+  const tile = (
+    <VStack
+      className={`grow gap-1 rounded-[14px] border p-3.5 ${selected ? 'border-accent-fg bg-selected' : 'border-line bg-card'} ${onPress ? '' : basis}`}
+    >
+      <Text className="text-[13px] font-medium text-fg-2">{label}</Text>
+      {loading ? (
+        <Loading>
+          <Skeleton width={56} height={26} />
+        </Loading>
+      ) : (
+        <HStack className="items-center gap-1">
+          {icon && (
+            <Box accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+              {icon}
+            </Box>
+          )}
+          <Text
+            className={`text-[24px] font-semibold tabular-nums ${tone === 'idle' ? 'text-fg' : TONE_TEXT[tone]}`}
+          >
+            {value}
+          </Text>
+        </HStack>
+      )}
+      {sub && <Text className="text-[12px] text-fg-3">{sub}</Text>}
+    </VStack>
+  )
+  return onPress ? (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${label} ${value}`}
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      className={`grow ${basis} data-[active=true]:opacity-80`}
+    >
+      {tile}
+    </Pressable>
+  ) : (
+    tile
+  )
+}
 
 // A row of mutually exclusive choices (radio semantics), like desktop's pressed-button groups. `scroll` keeps
 // many choices on one line that slides sideways instead of wrapping.
@@ -421,6 +498,70 @@ export const Segmented = <V extends string>({
 }
 
 // An empty list: a soft icon, what's missing, and what to do about it.
+// Loading starts by itself near the end of a list (`onEndReached`); the button is the way in for screen readers and
+// the way to try again.
+// A FlatList under a fixed header. Everything else about the list is passed straight through.
+export const ListScreen = <T,>({
+  header,
+  underHeader = false,
+  ListHeaderComponent,
+  ...list
+}: FlatListProps<T> & {
+  header: ReactNode
+  underHeader?: boolean
+  contentContainerClassName?: string
+}): React.JSX.Element => {
+  const inset = useTabBarInset()
+  const pinned = usePinned()
+  const first = ListHeaderComponent as ReactNode
+  return (
+    <SafeAreaView
+      edges={underHeader ? ['left', 'right'] : ['top', 'left', 'right']}
+      className="flex-1 bg-canvas"
+    >
+      {pinned && <HeaderBar underHeader={underHeader}>{header}</HeaderBar>}
+      <FlatList
+        contentContainerStyle={{ paddingBottom: inset || undefined }}
+        contentInsetAdjustmentBehavior={underHeader ? 'automatic' : undefined}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        // Cards are tall, so a small window keeps a long list's memory flat without blank gaps while scrolling.
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={7}
+        ListHeaderComponent={
+          pinned ? (
+            <>{first}</>
+          ) : (
+            <VStack className="mb-1 gap-4">
+              {header}
+              {first}
+            </VStack>
+          )
+        }
+        {...list}
+      />
+    </SafeAreaView>
+  )
+}
+
+export const LoadMore = ({
+  page
+}: {
+  page: Pick<Paged<unknown>, 'more' | 'busy' | 'failed' | 'older'>
+}): React.JSX.Element | null => {
+  const { t } = useT()
+  const label = t(page.failed ? 'tryAgain' : 'showOlder')
+  return page.more || page.failed ? (
+    <VStack className="gap-3">
+      {page.failed && <Notice tone="bad">{t(page.failed)}</Notice>}
+      <Button variant="ghost" busy={page.busy} onPress={page.older}>
+        {label}
+      </Button>
+    </VStack>
+  ) : null
+}
+
 export const Empty = ({
   icon,
   title,

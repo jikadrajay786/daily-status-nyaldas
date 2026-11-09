@@ -4,9 +4,16 @@ export const PUSH = {
   "channels": {
     "statusSubmitted": "updates",
     "taskStatus": "tasks",
+    "taskDone": "tasks",
     "taskAssigned": "tasks",
     "taskReminder": "tasks",
-    "comment": "comments"
+    "comment": "comments",
+    "leaveRequested": "leave",
+    "leaveApproved": "leave",
+    "leaveRejected": "leave",
+    "leaveCancelled": "leave",
+    "leaveTakenBack": "leave",
+    "signupWaiting": "people"
   },
   "text": {
     "en": {
@@ -18,6 +25,9 @@ export const PUSH = {
           "title": "{name} updated a task",
           "body": "{title}: {status}"
         },
+        "taskDone": {
+          "title": "Everyone has finished a task"
+        },
         "taskAssigned": {
           "title": "New task for you"
         },
@@ -26,6 +36,24 @@ export const PUSH = {
         },
         "comment": {
           "title": "{name} commented"
+        },
+        "leaveRequested": {
+          "title": "{name} asked for leave"
+        },
+        "leaveApproved": {
+          "title": "Your leave was approved"
+        },
+        "leaveRejected": {
+          "title": "Your leave was not approved"
+        },
+        "leaveCancelled": {
+          "title": "Your leave was cancelled"
+        },
+        "leaveTakenBack": {
+          "title": "{name} cancelled their leave"
+        },
+        "signupWaiting": {
+          "title": "New account waiting for approval"
         }
       },
       "status": {
@@ -44,6 +72,9 @@ export const PUSH = {
           "title": "{name} ने काम अपडेट किया",
           "body": "{title}: {status}"
         },
+        "taskDone": {
+          "title": "सबने काम पूरा कर लिया"
+        },
         "taskAssigned": {
           "title": "आपके लिए नया काम"
         },
@@ -52,6 +83,24 @@ export const PUSH = {
         },
         "comment": {
           "title": "{name} ने कमेंट किया"
+        },
+        "leaveRequested": {
+          "title": "{name} ने छुट्टी मांगी"
+        },
+        "leaveApproved": {
+          "title": "आपकी छुट्टी मंज़ूर हो गई"
+        },
+        "leaveRejected": {
+          "title": "आपकी छुट्टी मंज़ूर नहीं हुई"
+        },
+        "leaveCancelled": {
+          "title": "आपकी छुट्टी कैंसल हो गई"
+        },
+        "leaveTakenBack": {
+          "title": "{name} ने अपनी छुट्टी कैंसल की"
+        },
+        "signupWaiting": {
+          "title": "नया अकाउंट मंज़ूरी का इंतज़ार कर रहा है"
         }
       },
       "status": {
@@ -70,6 +119,9 @@ export const PUSH = {
           "title": "{name} એ કામ અપડેટ કર્યું",
           "body": "{title}: {status}"
         },
+        "taskDone": {
+          "title": "બધાએ કામ પૂરું કરી લીધું"
+        },
         "taskAssigned": {
           "title": "તમારા માટે નવું કામ"
         },
@@ -78,6 +130,24 @@ export const PUSH = {
         },
         "comment": {
           "title": "{name} એ કમેન્ટ કરી"
+        },
+        "leaveRequested": {
+          "title": "{name} એ રજા માંગી"
+        },
+        "leaveApproved": {
+          "title": "તમારી રજા મંજૂર થઈ"
+        },
+        "leaveRejected": {
+          "title": "તમારી રજા મંજૂર ન થઈ"
+        },
+        "leaveCancelled": {
+          "title": "તમારી રજા કેન્સલ થઈ"
+        },
+        "leaveTakenBack": {
+          "title": "{name} એ પોતાની રજા કેન્સલ કરી"
+        },
+        "signupWaiting": {
+          "title": "નવું એકાઉન્ટ મંજૂરીની રાહ જુએ છે"
         }
       },
       "status": {

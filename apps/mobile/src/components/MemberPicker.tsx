@@ -20,7 +20,7 @@ export const MemberPicker = ({
   value,
   onChange
 }: {
-  members: readonly Profile[]
+  members: readonly Pick<Profile, 'id' | 'full_name' | 'email'>[]
   value: string
   onChange: (id: string) => void
 }): React.JSX.Element => {
@@ -43,10 +43,10 @@ export const MemberPicker = ({
 
   return (
     <VStack className="gap-1.5">
-      <Text className="text-[14px] font-medium text-fg-2">{t('roleMember')}</Text>
+      <Text className="text-[14px] font-medium text-fg-2">{t('roleStaff')}</Text>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${t('roleMember')}: ${label}`}
+        accessibilityLabel={`${t('roleStaff')}: ${label}`}
         onPress={() => setOpen(true)}
         className="min-h-12 flex-row items-center gap-2 rounded-[10px] border border-line bg-field px-3"
       >
@@ -59,7 +59,7 @@ export const MemberPicker = ({
         <SafeAreaView accessibilityViewIsModal className="flex-1 gap-3 bg-canvas p-4">
           <HStack className="items-center justify-between">
             <Text accessibilityRole="header" className="text-[20px] font-semibold text-fg">
-              {t('roleMember')}
+              {t('roleStaff')}
             </Text>
             <Pressable accessibilityRole="button" onPress={close} hitSlop={12}>
               {/* Bold on Android: a content-sized weight-600 label there loses its last letter. */}

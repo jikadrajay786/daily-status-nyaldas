@@ -3,7 +3,7 @@ import { useT } from '@daily-status/core/i18n'
 import { today } from '@daily-status/core/supabase'
 import { ymd } from '@daily-status/core/workdays'
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker'
-import { CalendarDays } from 'lucide-react-native'
+import { CalendarDays, ChevronDown } from 'lucide-react-native'
 import { Platform } from 'react-native'
 import { withUniwind } from 'uniwind'
 import { useTheme } from '@/lib/theme'
@@ -14,6 +14,7 @@ import { VStack } from './gs/vstack'
 import { Link } from './ui'
 
 const CalendarIcon = withUniwind(CalendarDays)
+const OpenIcon = withUniwind(ChevronDown)
 const DatePicker = withUniwind(DateTimePicker)
 
 // Local midnight, never toISOString(): in IST that would land on the previous day.
@@ -29,6 +30,8 @@ type Props = {
   clearable?: boolean
   // Still read by screen readers; for places where the date speaks for itself.
   hideLabel?: boolean
+  // A small button for a screen's header, with the date shortened.
+  pill?: boolean
 }
 
 export const DateField = ({
@@ -38,7 +41,8 @@ export const DateField = ({
   min,
   max,
   clearable = false,
-  hideLabel = false
+  hideLabel = false,
+  pill = false
 }: Props): React.JSX.Element => {
   const { t, locale } = useT()
   const { colors } = useTheme()
@@ -75,12 +79,22 @@ export const DateField = ({
             accessibilityRole="button"
             accessibilityLabel={`${title}: ${value ? fmtDate(value, locale) : t('allDates')}`}
             onPress={() => (Platform.OS === 'ios' ? onChange(today()) : openAndroid())}
-            className="min-h-12 grow flex-row items-center gap-2.5 rounded-[10px] border border-line bg-field px-3"
+            hitSlop={pill ? 6 : undefined}
+            className={`flex-row items-center border border-line bg-field ${pill ? 'min-h-9 gap-1.5 rounded-full px-3 py-1 data-[active=true]:bg-selected' : 'min-h-12 grow gap-2.5 rounded-[10px] px-3'}`}
           >
-            <CalendarIcon size={18} colorClassName="accent-fg-2" />
-            <Text className="text-[16px] text-fg">
-              {value ? fmtDate(value, locale) : t('allDates')}
+            <CalendarIcon size={pill ? 16 : 18} colorClassName="accent-fg-2" />
+            <Text className={pill ? 'text-[14px] font-medium text-fg' : 'text-[16px] text-fg'}>
+              {!value
+                ? t('allDates')
+                : pill
+                  ? new Intl.DateTimeFormat(locale, {
+                      weekday: 'short',
+                      day: 'numeric',
+                      month: 'short'
+                    }).format(toDate(value))
+                  : fmtDate(value, locale)}
             </Text>
+            {pill && <OpenIcon size={14} colorClassName="accent-fg-2" />}
           </Pressable>
         )}
         {clearable && value && <Link onPress={() => onChange('')}>{t('allDates')}</Link>}

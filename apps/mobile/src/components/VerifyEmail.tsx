@@ -7,12 +7,13 @@ import { Text } from './gs/text'
 import { OtpInput } from './OtpInput'
 import { Button, Link, Notice, Title } from './ui'
 
-type Props = { email: string; password: string; justSent: boolean; onBack: () => void }
+type Props = Parameters<typeof useVerifyCode>[0] & { onBack: () => void }
 
-export const VerifyEmail = ({ email, password, justSent, onBack }: Props): React.JSX.Element => {
+export const VerifyEmail = ({ onBack, ...args }: Props): React.JSX.Element => {
   const { t } = useT()
-  const otp = useVerifyCode({ email, password, justSent })
+  const otp = useVerifyCode(args)
   const { phase, rejected } = otp
+  const { email, justSent, recovery } = args
 
   useEffect(() => {
     if (rejected) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
@@ -22,8 +23,11 @@ export const VerifyEmail = ({ email, password, justSent, onBack }: Props): React
 
   return (
     <>
-      <Title center sub={t(justSent ? 'verifySent' : 'verifyNeeded', { email })}>
-        {t('verifyTitle')}
+      <Title
+        center
+        sub={t(recovery ? 'resetSent' : justSent ? 'verifySent' : 'verifyNeeded', { email })}
+      >
+        {t(recovery ? 'forgotTitle' : 'verifyTitle')}
       </Title>
       <OtpInput
         value={otp.code}

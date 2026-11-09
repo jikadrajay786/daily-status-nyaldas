@@ -60,7 +60,10 @@ export const useCommentCounts = (
   const [q] = useLiveQuery(`comment-counts:${kind}:${ids.join(',')}`, () =>
     countComments(kind, ids)
   )
-  return q.state === 'ok' ? q.data : {}
+  // A list that grows asks with new ids; the cards already on screen keep their numbers meanwhile.
+  const [last, setLast] = useState<Record<string, number>>({})
+  if (q.state === 'ok' && last !== q.data) setLast(q.data)
+  return q.state === 'ok' ? q.data : last
 }
 
 // The reply box. Text typed while a send is in flight stays put; only what was sent is cleared.

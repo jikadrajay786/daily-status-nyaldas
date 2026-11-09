@@ -4,7 +4,7 @@ import { I18nContext, LOCALE, translator, type I18n, type Lang } from '@daily-st
 import { DescriptionEditor, type EditorChange } from '@daily-status/editor/DescriptionEditor'
 import { sanitize } from '@daily-status/editor/sanitize'
 import { useDOMImperativeHandle, type DOMImperativeFactory, type DOMProps } from 'expo/dom'
-import { useEffect, useLayoutEffect, useMemo, useRef, type Ref } from 'react'
+import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, type Ref } from 'react'
 import './editor.css'
 
 export type EditorHandle = DOMImperativeFactory & {
@@ -32,6 +32,8 @@ type Props = {
   typing: boolean
   minHeight: number
   onContentHeight: (h: number) => Promise<void>
+  // While typing: whether the text has outgrown the writing area, so a drag should scroll it rather than the screen.
+  onOverflow: (over: boolean) => Promise<void>
   dom?: DOMProps
 }
 
@@ -49,7 +51,8 @@ export default function EditorPage({
   onEditorFocus,
   typing,
   minHeight,
-  onContentHeight
+  onContentHeight,
+  onOverflow
 }: Props): React.JSX.Element {
   // Before paint, so the page never flashes unthemed. lang also drives checklist screen-reader labels.
   useLayoutEffect(() => {
@@ -102,12 +105,23 @@ export default function EditorPage({
     }
   }, [typing, onContentHeight])
 
+  const overflows = useRef<boolean | null>(null)
+  const checkOverflow = (): void => {
+    const area = document.querySelector('[data-editor-box] [contenteditable]')?.parentElement
+    const over = !!area && area.scrollHeight > area.clientHeight + 1
+    if (typing && over !== overflows.current) void onOverflow((overflows.current = over))
+  }
+  const check = useEffectEvent(checkOverflow)
+
   useEffect(() => {
     if (!typing) return
+    overflows.current = null
     // The writing area turns into a scroller that starts at the top; once the WebView has its new size, bring the
     // caret back into view (someone may have tapped a line far down a long update).
-    const show = (): void =>
+    const show = (): void => {
       window.getSelection()?.focusNode?.parentElement?.scrollIntoView({ block: 'nearest' })
+      check()
+    }
     show()
     window.addEventListener('resize', show)
     return () => window.removeEventListener('resize', show)
@@ -142,7 +156,10 @@ export default function EditorPage({
           grow={!typing}
           // Stored HTML may be someone else's (admin edits): clean it like every rendered card.
           initialHtml={sanitize(initialHtml)}
-          onChange={(c) => void onChange(c)}
+          onChange={(c) => {
+            void onChange(c)
+            checkOverflow()
+          }}
           loadPlan={loadPlan}
           initialWriteLang={initialWriteLang}
           onWriteLangChange={(l) => void onWriteLangChange(l)}

@@ -27,7 +27,11 @@ const TABLES = [
   'tasks',
   'task_assignments',
   'comments',
-  'holidays'
+  'holidays',
+  'leave_types',
+  'leave_requests',
+  'leave_ledger',
+  'signup_requests'
 ] as const
 
 // Mounted once while signed in. Realtime applies each subscriber's RLS, so nobody hears about rows they can't read.
