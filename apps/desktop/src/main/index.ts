@@ -6,9 +6,11 @@ import {
   ipcMain,
   nativeTheme,
   Notification,
+  safeStorage,
+  session,
   ShareMenu
 } from 'electron'
-import { readFileSync, writeFileSync } from 'fs'
+import { readFileSync, renameSync, rmSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -37,6 +39,33 @@ const syncBackground = (): void =>
 const applyTheme = (): void => {
   nativeTheme.themeSource = NATIVE_SCHEME[theme]
   syncBackground()
+}
+
+// The sign-in session, encrypted with the OS keychain so other programs and backups can't reuse it.
+const sessionFile = (): string => join(app.getPath('userData'), 'session.bin')
+const SESSION_KEY = /^sb-[\w-]{1,100}$/
+let saved: Record<string, string> | undefined
+
+const loadSession = (): Record<string, string> => {
+  if (saved) return saved
+  try {
+    saved = JSON.parse(safeStorage.decryptString(readFileSync(sessionFile()))) as Record<
+      string,
+      string
+    >
+  } catch {
+    // No file yet, or the keychain entry is gone: signed out, not a crash.
+    saved = {}
+  }
+  return saved
+}
+
+const saveSession = (next: Record<string, string>): void => {
+  saved = next
+  const tmp = `${sessionFile()}.tmp`
+  // Rename, so a crash mid-write can't sign someone out.
+  writeFileSync(tmp, safeStorage.encryptString(JSON.stringify(next)), { mode: 0o600 })
+  renameSync(tmp, sessionFile())
 }
 
 function createWindow(): void {
@@ -131,7 +160,38 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
+  // The app uses no camera, microphone, location or web notifications (alerts go through main).
+  session.defaultSession.setPermissionRequestHandler((_, __, cb) => cb(false))
+  session.defaultSession.setPermissionCheckHandler(() => false)
+
   // IPC handlers. Renderer input is untrusted, so validate it before use.
+  ipcMain.handle(IPC.sessionGet, (_, key: unknown) =>
+    typeof key === 'string' && SESSION_KEY.test(key) && safeStorage.isEncryptionAvailable()
+      ? (loadSession()[key] ?? null)
+      : null
+  )
+  ipcMain.handle(IPC.sessionSet, (_, key: unknown, value: unknown) => {
+    if (
+      typeof key !== 'string' ||
+      !SESSION_KEY.test(key) ||
+      typeof value !== 'string' ||
+      value.length > 100_000 ||
+      !safeStorage.isEncryptionAvailable()
+    )
+      return false
+    saveSession({ ...loadSession(), [key]: value })
+    return true
+  })
+  ipcMain.handle(IPC.sessionRemove, (_, key: unknown) => {
+    if (typeof key !== 'string' || !safeStorage.isEncryptionAvailable()) return
+    const { [key]: gone, ...rest } = loadSession()
+    if (gone === undefined) return
+    if (Object.keys(rest).length) saveSession(rest)
+    else {
+      saved = {}
+      rmSync(sessionFile(), { force: true })
+    }
+  })
   ipcMain.handle(IPC.setTheme, (_, t: unknown) => {
     if (!isTheme(t) || t === theme) return
     theme = t
@@ -147,7 +207,10 @@ app.whenReady().then(() => {
     if (typeof title !== 'string' || typeof body !== 'string' || !Notification.isSupported())
       return false
     const n = new Notification({ title: title.slice(0, 200), body: body.slice(0, 500) })
-    if (typeof open === 'string' && /^(status|task):[0-9a-f-]{36}$/.test(open))
+    if (
+      typeof open === 'string' &&
+      /^(status|task|leave|leaveRequests|team):[0-9a-f-]{36}$/.test(open)
+    )
       n.on('click', () => {
         const win = BrowserWindow.fromWebContents(e.sender)
         if (!win || win.isDestroyed()) return

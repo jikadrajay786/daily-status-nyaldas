@@ -8,7 +8,10 @@ export const IPC = {
   notifyClick: 'notify-click',
   setTheme: 'set-theme',
   textSize: 'text-size',
-  share: 'share'
+  share: 'share',
+  sessionGet: 'session-get',
+  sessionSet: 'session-set',
+  sessionRemove: 'session-remove'
 } as const
 
 // "system" is the macOS share menu; elsewhere the renderer offers the named apps only.
@@ -19,9 +22,14 @@ export type ShareVia = (typeof SHARE_VIA)[number]
 export type SizeStep = 1 | -1 | 0
 
 export interface Api {
+  platform: string
   ping: () => Promise<'pong'>
+  // The sign-in session, encrypted by main. sessionSet is false when this computer has no keychain to encrypt with.
+  sessionGet: (key: string) => Promise<string | null>
+  sessionSet: (key: string, value: string) => Promise<boolean>
+  sessionRemove: (key: string) => Promise<void>
   getAppVersion: () => Promise<string>
-  // `open` ("status:<id>" or "task:<id>") comes back through onNotifyClick when the notification is clicked.
+  // `open` ("status:<id>", "task:<id>", "leave:<id>" or "leaveRequests:<id>") comes back through onNotifyClick when the notification is clicked.
   notify: (title: string, body: string, open?: string) => Promise<boolean>
   // Returns an unsubscribe.
   onNotifyClick: (cb: (open: string) => void) => () => void
