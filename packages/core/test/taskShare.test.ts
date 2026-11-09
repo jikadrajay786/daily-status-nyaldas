@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { translator } from '../src/i18n'
-import type { BoardTask } from '../src/taskService'
+import type { SharedTask } from '../src/taskService'
 import { shareText } from '../src/taskShare'
 
-const task = (o: Partial<BoardTask> = {}): BoardTask => ({
+const task = (o: Partial<SharedTask> = {}): SharedTask => ({
   id: '0b1c2d3e-4f5a-4b6c-9d7e-8f9a0b1c2d3e',
   title: ' Count stock ',
   description: null,

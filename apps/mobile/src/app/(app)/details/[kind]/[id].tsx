@@ -2,10 +2,11 @@ import { useComments, type CommentTarget } from '@daily-status/core/commentServi
 import { useT } from '@daily-status/core/i18n'
 import { useLiveQuery } from '@daily-status/core/live'
 import { canChange, getProfile, getStatus } from '@daily-status/core/statusService'
-import { getTask, managesTask } from '@daily-status/core/taskService'
+import { getTask, managesTask, type BoardTask } from '@daily-status/core/taskService'
+import { useDeleteTask } from '@daily-status/core/useTasks'
 import { router, useLocalSearchParams } from 'expo-router'
 import { ChevronLeft } from 'lucide-react-native'
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { KeyboardAvoidingView, ScrollView, type ScrollViewInstance } from 'react-native'
 import { GestureHandlerRootView as RNGestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaView as RNSafeAreaView } from 'react-native-safe-area-context'
@@ -19,7 +20,8 @@ import { Pressable } from '@/components/gs/pressable'
 import { Text } from '@/components/gs/text'
 import { CardsSkeleton, StatusCard } from '@/components/StatusCard'
 import { TaskCard } from '@/components/TaskCard'
-import { Button, Loading, Notice, Skeleton } from '@/components/ui'
+import { TaskMembers } from '@/components/TaskMembers'
+import { Button, Card, Loading, Notice, Skeleton } from '@/components/ui'
 import { useProfile } from '@/lib/profile'
 import { uuidParam } from '@/lib/route'
 import { useShareTask } from '@/lib/share'
@@ -51,7 +53,7 @@ const StatusDetails = ({ id }: { id: string }): React.JSX.Element => {
             onPress={() =>
               admin
                 ? router.push({ pathname: '/team/edit/[statusId]', params: { statusId: st.id } })
-                : router.navigate({ pathname: '/', params: { date: st.date, edit: '1' } })
+                : router.navigate({ pathname: '/', params: { date: st.date, edit: st.id } })
             }
           >
             {t('edit')}
@@ -62,28 +64,70 @@ const StatusDetails = ({ id }: { id: string }): React.JSX.Element => {
   )
 }
 
+// In-app confirm: the system Alert's buttons would follow the phone's language, not the app's.
+const TaskActions = ({ task }: { task: BoardTask }): React.JSX.Element => {
+  const { t } = useT()
+  const share = useShareTask()
+  const [confirming, setConfirming] = useState(false)
+  const { run, busy, error } = useDeleteTask()
+  const remove = async (): Promise<void> => {
+    if (!(await run(task.id))) return
+    if (router.canGoBack()) router.back()
+    else router.replace('/board')
+  }
+  return (
+    <>
+      <HStack className="flex-wrap justify-end gap-2">
+        {confirming ? (
+          <>
+            <Text className="basis-full text-right text-[15px] text-bad-fg">
+              {t('confirmDeleteTask')}
+            </Text>
+            <Button variant="ghost" onPress={() => setConfirming(false)}>
+              {t('cancel')}
+            </Button>
+            <Button variant="danger" busy={busy} onPress={() => void remove()}>
+              {t('yesDelete')}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button variant="ghost" onPress={() => share(task)}>
+              {t('shareTask')}
+            </Button>
+            <Button variant="danger" onPress={() => setConfirming(true)}>
+              {t('deleteTask')}
+            </Button>
+          </>
+        )}
+      </HStack>
+      {error && <Notice tone="bad">{t(error)}</Notice>}
+    </>
+  )
+}
+
 const TaskDetails = ({ id }: { id: string }): React.JSX.Element => {
   const { t } = useT()
   const me = useProfile()
-  const share = useShareTask()
   const [q] = useLiveQuery(`task-details:${id}`, () => getTask(id))
   if (q.state === 'loading') return <CardsSkeleton count={1} />
   if (q.state === 'error') return <Notice tone="bad">{t(q.message)}</Notice>
   if (!q.data) return <Notice>{t('notFound')}</Notice>
-  // Assignees change the status right here; whoever hands the task out reads who it's given to.
+  // Someone on the task changes their own status on their card and sees everyone else's below it; whoever hands the
+  // task out, or looks after the people on it, sees everyone's and updates them person by person.
   const task = q.data
-  return managesTask(task, me) ? (
-    <BoardCard
-      task={task}
-      full
-      footer={
-        <Button variant="ghost" onPress={() => share(task)}>
-          {t('shareTask')}
-        </Button>
-      }
-    />
+  const mine = task.assignees.find((a) => a.id === me.id)
+  return mine ? (
+    <>
+      <TaskCard task={{ ...task, status: mine.status }} userId={me.id} index={0} />
+      {task.assignees.length > 1 && (
+        <Card>
+          <TaskMembers task={task} />
+        </Card>
+      )}
+    </>
   ) : (
-    <TaskCard task={task} index={0} />
+    <BoardCard task={task} full footer={managesTask(task, me) && <TaskActions task={task} />} />
   )
 }
 
