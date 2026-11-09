@@ -1,5 +1,6 @@
 import { useT } from '@daily-status/core/i18n'
 import { Minus, Plus } from 'lucide-react-native'
+import type { ReactNode } from 'react'
 import { TextInput } from 'react-native'
 import { withUniwind } from 'uniwind'
 import { useAnnounce } from '@/lib/announce'
@@ -12,7 +13,14 @@ import { VStack } from './gs/vstack'
 const MinusIcon = withUniwind(Minus)
 const PlusIcon = withUniwind(Plus)
 
-type Props = { value: string; onChange: (h: string) => void; error?: string; onFocus?: () => void }
+type Props = {
+  value: string
+  onChange: (h: string) => void
+  error?: string
+  onFocus?: () => void
+  // Shares the row with the stepper (the form's Submit), wrapping below it when there's no room.
+  action?: ReactNode
+}
 
 // − and + move to the next half hour (7.3 → 7.5 or 7); the box still takes typed values like 7.25.
 const step = (raw: string, dir: 1 | -1): string => {
@@ -23,7 +31,13 @@ const step = (raw: string, dir: 1 | -1): string => {
   )
 }
 
-export const HoursField = ({ value, onChange, error, onFocus }: Props): React.JSX.Element => {
+export const HoursField = ({
+  value,
+  onChange,
+  error,
+  onFocus,
+  action
+}: Props): React.JSX.Element => {
   const { t } = useT()
   useAnnounce(error)
   const n = parseHours(value)
@@ -45,24 +59,40 @@ export const HoursField = ({ value, onChange, error, onFocus }: Props): React.JS
     </Pressable>
   )
 
+  const stepper = (
+    <>
+      {btn(MinusIcon, t('hoursLess'), -1, n <= 0)}
+      <TextInput
+        accessibilityLabel={t('hoursWorked')}
+        {...(error && { accessibilityHint: error })}
+        value={value}
+        onChangeText={onChange}
+        {...(onFocus && { onFocus })}
+        keyboardType="decimal-pad"
+        selectTextOnFocus
+        selectionColorClassName="accent-accent-fg"
+        className={`min-h-12 rounded-[10px] border bg-field text-center text-[18px] font-semibold text-fg ${action ? 'w-[52px]' : 'w-[72px]'} ${error ? 'border-bad' : 'border-line'}`}
+      />
+      {btn(PlusIcon, t('hoursMore'), 1, n >= 24)}
+    </>
+  )
+
   return (
     <VStack className="gap-1.5">
-      <HStack className="flex-wrap items-center gap-2">
-        <Text className="grow text-[16px] font-medium text-fg">{t('hoursWorked')}</Text>
-        {btn(MinusIcon, t('hoursLess'), -1, n <= 0)}
-        <TextInput
-          accessibilityLabel={t('hoursWorked')}
-          {...(error && { accessibilityHint: error })}
-          value={value}
-          onChangeText={onChange}
-          {...(onFocus && { onFocus })}
-          keyboardType="decimal-pad"
-          selectTextOnFocus
-          selectionColorClassName="accent-accent-fg"
-          className={`min-h-12 w-[72px] rounded-[10px] border bg-field text-center text-[18px] font-semibold text-fg ${error ? 'border-bad' : 'border-line'}`}
-        />
-        {btn(PlusIcon, t('hoursMore'), 1, n >= 24)}
-      </HStack>
+      {action ? (
+        <HStack className="flex-wrap items-end gap-2">
+          <VStack className="gap-1.5">
+            <Text className="text-[13px] font-medium text-fg-2">{t('hoursWorked')}</Text>
+            <HStack className="items-center gap-1">{stepper}</HStack>
+          </VStack>
+          <VStack className="min-w-[130px] flex-1">{action}</VStack>
+        </HStack>
+      ) : (
+        <HStack className="flex-wrap items-center gap-2">
+          <Text className="grow text-[16px] font-medium text-fg">{t('hoursWorked')}</Text>
+          {stepper}
+        </HStack>
+      )}
       {error && (
         <Text accessibilityLiveRegion="polite" className="text-[13px] text-bad-fg">
           {error}

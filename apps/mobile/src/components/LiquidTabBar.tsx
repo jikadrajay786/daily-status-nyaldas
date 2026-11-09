@@ -1,6 +1,6 @@
 import type { BottomTabBarProps } from 'expo-router/js-tabs'
 import { useEffect, useRef, useState } from 'react'
-import { Platform, Pressable } from 'react-native'
+import { Platform, Pressable, useWindowDimensions } from 'react-native'
 import Animated, {
   Easing,
   FadeIn,
@@ -49,6 +49,9 @@ export const LiquidTabBar = ({
   insets
 }: BottomTabBarProps): React.JSX.Element => {
   const { colors: c } = useTheme()
+  const { width: screenWidth } = useWindowDimensions()
+  // Leads have eight tabs, more than fit at 48pt on most phones, so they share the width instead.
+  const crowded = state.routes.length > 7
   const reduce = useReducedMotion()
   const [slots, setSlots] = useState<Record<string, Slot>>({})
   const left = useSharedValue(0)
@@ -92,6 +95,8 @@ export const LiquidTabBar = ({
           const options = descriptors[route.key]?.options
           const focused = route.key === active
           const label = options?.title ?? route.name
+          // Seven tabs or a very narrow phone leave no room for a readable label; the accessibility label still names each one.
+          const labelled = focused && state.routes.length < 7 && screenWidth >= 350
           // React Navigation hands the icon a colour value, not a class.
           const color = focused ? c.accentFg : c.fg2
           return (
@@ -106,7 +111,13 @@ export const LiquidTabBar = ({
                 )
               }
               // Clipped, so a label growing in with the tab never draws outside it.
-              className={focused ? 'min-w-12 shrink overflow-hidden' : 'w-12 overflow-hidden'}
+              className={
+                labelled
+                  ? 'min-w-12 shrink overflow-hidden'
+                  : crowded
+                    ? 'max-w-12 flex-1 overflow-hidden'
+                    : 'w-12 overflow-hidden'
+              }
             >
               <Pressable
                 accessibilityRole="tab"
@@ -121,10 +132,10 @@ export const LiquidTabBar = ({
                   if (!focused && !event.defaultPrevented) navigateToTab(route.key)
                 }}
                 onLongPress={() => emitter.emit({ type: 'tabLongPress', target: route.key })}
-                className="h-12 flex-row items-center justify-center gap-2 px-[13px]"
+                className={`h-12 flex-row items-center justify-center ${labelled ? 'gap-1.5 px-2.5' : 'px-[13px]'}`}
               >
                 {options?.tabBarIcon?.({ focused, color, size: 22 })}
-                {focused && (
+                {labelled && (
                   <Animated.View
                     entering={reduce ? undefined : FadeIn.duration(160).delay(120)}
                     className="shrink"
