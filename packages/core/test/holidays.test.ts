@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { addHoliday } from '../src/holidayService'
+import { addHoliday, updateHoliday } from '../src/holidayService'
 import { errMsg } from '../src/useQuery'
 
 type Res = { data: unknown; error: unknown }
@@ -50,5 +50,38 @@ describe('addHoliday', () => {
     await expect(addHoliday('2026-11-08', 'Diwali')).rejects.toSatisfy(
       (e) => errMsg(e) === 'errHolidayExists'
     )
+  })
+})
+
+describe('updateHoliday', () => {
+  it('moves the holiday and trims the name', async () => {
+    next = { data: [{ day: '2027-01-15' }], error: null }
+    await updateHoliday('2027-01-14', '2027-01-15', '  Vasi Uttarayan ')
+    expect(calls.find(([k]) => k === 'update')?.[1]).toEqual([
+      { day: '2027-01-15', name: 'Vasi Uttarayan' }
+    ])
+    expect(calls.find(([k]) => k === 'eq')?.[1]).toEqual(['day', '2027-01-14'])
+  })
+
+  it('checks the date and name before any request', async () => {
+    await expect(updateHoliday('2027-01-14', '', 'Uttarayan')).rejects.toSatisfy(
+      (e) => errMsg(e) === 'errHolidayDay'
+    )
+    await expect(updateHoliday('2027-01-14', '2027-01-15', ' ')).rejects.toSatisfy(
+      (e) => errMsg(e) === 'errHolidayName'
+    )
+    expect(calls).toEqual([])
+  })
+
+  it('says so when the new day is already a holiday', async () => {
+    next = { data: null, error: { code: '23505', message: 'duplicate key' } }
+    await expect(updateHoliday('2027-01-14', '2027-01-15', 'Uttarayan')).rejects.toSatisfy(
+      (e) => errMsg(e) === 'errHolidayExists'
+    )
+  })
+
+  it('fails when nothing changed, as a refused write does', async () => {
+    next = { data: [], error: null }
+    await expect(updateHoliday('2027-01-14', '2027-01-15', 'Uttarayan')).rejects.toBeTruthy()
   })
 })
