@@ -9,40 +9,65 @@ type Lang = keyof typeof PUSH.text
 type Status = keyof (typeof PUSH.text)[Lang]['status']
 type Job = {
   event: Event
-  kind: 'status' | 'task'
+  kind: 'status' | 'task' | 'leave' | 'person'
   id: string
   to: string[]
   vars: { name?: string; title?: string; text?: string; status?: Status }
 }
 
-type Message = {
-  to: string
-  title: string
-  body: string
-  data: { event: Event; kind: Job['kind']; id: string }
-  channelId: string
-  priority: 'high'
-  sound: 'default'
-}
+type Data = { event: Event; kind: Job['kind']; id: string }
+type Message =
+  | {
+      to: string
+      title: string
+      body: string
+      data: Data
+      channelId: string
+      priority: 'high'
+      sound: 'default'
+    }
+  // Data only: Android would draw a regular push itself while the app is in the background, without the Reply box.
+  | {
+      to: string
+      data: Data & { show: { title: string; body: string } }
+      priority: 'high'
+      _contentAvailable: true
+    }
 
 const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+const expoToken = Deno.env.get('EXPO_ACCESS_TOKEN')
 const fill = (s: string, vars: Record<string, string | undefined>): string =>
   s.replace(/\{(\w+)\}/g, (m, k: string) => vars[k] ?? m)
 
-const message = ({ event, kind, id, vars }: Job, token: string, lang: Lang): Message => {
+const message = (
+  { event, kind, id, vars }: Job,
+  token: string,
+  lang: Lang,
+  replies: boolean
+): Message => {
   const { events, status } = PUSH.text[lang] ?? PUSH.text.en
-  const { title, body } = events[event] as { title: string; body?: string }
+  const t = events[event] as { title: string; body?: string }
   const v = { ...vars, status: vars.status && status[vars.status] }
-  return {
-    to: token,
-    title: fill(title, v),
-    // description_text turns tags into spaces, so an update's text arrives padded.
-    body: (body ? fill(body, v) : (vars.text ?? '')).replace(/\s+/g, ' ').trim(),
-    data: { event, kind, id },
-    channelId: PUSH.channels[event],
-    priority: 'high',
-    sound: 'default'
-  }
+  const title = fill(t.title, v)
+  // description_text turns tags into spaces, so an update's text arrives padded.
+  const body = (t.body ? fill(t.body, v) : (vars.text ?? '')).replace(/\s+/g, ' ').trim()
+  const data = { event, kind, id }
+  return event === 'comment' && replies
+    ? {
+        to: token,
+        data: { ...data, show: { title, body } },
+        priority: 'high',
+        _contentAvailable: true
+      }
+    : {
+        to: token,
+        title,
+        body,
+        data,
+        channelId: PUSH.channels[event],
+        priority: 'high',
+        sound: 'default'
+      }
 }
 
 Deno.serve(async (req) => {
@@ -53,18 +78,23 @@ Deno.serve(async (req) => {
 
   const { data: phones, error } = await db
     .from('push_tokens')
-    .select('token, lang')
+    .select('token, lang, replies')
     .in('user_id', job.to)
   if (error) return Response.json({ error: error.message }, { status: 500 })
 
-  const all = phones.map(({ token, lang }) => message(job, token, lang as Lang))
+  const all = phones.map(({ token, lang, replies }) => message(job, token, lang as Lang, replies))
   const gone: string[] = []
   // Expo takes up to 100 messages a request; tickets come back in the same order.
   for (let i = 0; i < all.length; i += 100) {
     const batch = all.slice(i, i + 100)
     const res = await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        // Needed once "Enhanced Security for Push" is on in Expo; set the secret before turning that on.
+        ...(expoToken && { Authorization: `Bearer ${expoToken}` })
+      },
       body: JSON.stringify(batch)
     })
     const { data } = (await res.json()) as { data?: { details?: { error?: string } }[] }

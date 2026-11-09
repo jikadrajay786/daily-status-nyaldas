@@ -5,6 +5,7 @@ import Constants from 'expo-constants'
 import * as N from 'expo-notifications'
 import { useEffect } from 'react'
 import { AppState, Platform } from 'react-native'
+import { stopCommentReply } from './commentReply'
 import { firstAsk } from './notifications'
 
 // iOS needs the APNs entitlement (`enableRemoteNotifications` in app.json), which only a paid Apple account can sign.
@@ -30,7 +31,7 @@ const register = async (userId: string, lang: Lang): Promise<void> => {
   if (!token) return
   const key = `${token}:${userId}:${lang}`
   if (key === sent) return
-  await registerPushToken(token, 'android', lang)
+  await registerPushToken(token, 'android', lang, true)
   sent = key
 }
 
@@ -74,5 +75,6 @@ export const signOut = async (): Promise<void> => {
       console.warn('push unregister failed', err)
     )
   token = sent = null
-  await db().auth.signOut()
+  await stopCommentReply()
+  await db().auth.signOut({ scope: 'local' })
 }
