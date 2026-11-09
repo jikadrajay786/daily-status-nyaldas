@@ -7,7 +7,8 @@ import { type TextInputInstance } from 'react-native'
 import { withUniwind } from 'uniwind'
 import { VStack } from './gs/vstack'
 import { Logo } from './Logo'
-import { Button, Card, Field, Notice, Screen, Segmented, Title } from './ui'
+import { EMAIL, ResetPassword } from './ResetPassword'
+import { Button, Card, Field, Link, Notice, Screen, Segmented, Title } from './ui'
 import { VerifyEmail } from './VerifyEmail'
 
 const LockIcon = withUniwind(Lock)
@@ -16,11 +17,12 @@ const UserIcon = withUniwind(User)
 
 type Mode = 'sign-in' | 'sign-up'
 type FieldName = 'fullName' | 'email' | 'password'
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 type Phase =
   | { state: 'idle' }
   | { state: 'busy' }
+  | { state: 'changed' }
   | { state: 'error'; message: Key }
+  | { state: 'reset' }
   | { state: 'verify'; email: string; password: string; justSent: boolean }
 
 export const AuthScreen = (): React.JSX.Element => {
@@ -105,6 +107,12 @@ export const AuthScreen = (): React.JSX.Element => {
           justSent={phase.justSent}
           onBack={() => setPhase({ state: 'idle' })}
         />
+      ) : phase.state === 'reset' ? (
+        <ResetPassword
+          initialEmail={form.email.trim()}
+          onBack={() => setPhase({ state: 'idle' })}
+          onChanged={() => setPhase({ state: 'changed' })}
+        />
       ) : (
         <>
           <Segmented
@@ -167,10 +175,14 @@ export const AuthScreen = (): React.JSX.Element => {
                 returnKeyType="go"
                 onSubmitEditing={submit}
               />
+              {phase.state === 'changed' && <Notice tone="ok">{t('passwordChanged')}</Notice>}
               {phase.state === 'error' && <Notice tone="bad">{t(phase.message)}</Notice>}
               <Button onPress={submit} busy={phase.state === 'busy'}>
                 {t(mode === 'sign-in' ? 'signIn' : 'createAccount')}
               </Button>
+              {mode === 'sign-in' && (
+                <Link onPress={() => setPhase({ state: 'reset' })}>{t('forgotPassword')}</Link>
+              )}
             </VStack>
           </Card>
         </>

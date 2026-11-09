@@ -4,14 +4,15 @@ import { useVerifyCode } from '@daily-status/core/useVerifyCode'
 import { OtpInput } from './OtpInput'
 import { Button, Notice } from './ui'
 
-type Props = { email: string; password: string; justSent: boolean; onBack: () => void }
+type Props = Parameters<typeof useVerifyCode>[0] & { onBack: () => void }
 
 // Codes beat links on desktop: the email's link would open a browser tab instead of returning to the app.
-export const VerifyEmail = ({ email, password, justSent, onBack }: Props): React.JSX.Element => {
+export const VerifyEmail = ({ onBack, ...args }: Props): React.JSX.Element => {
   const { t } = useT()
   const hint = useId()
-  const otp = useVerifyCode({ email, password, justSent })
+  const otp = useVerifyCode(args)
   const { phase } = otp
+  const { email, justSent, recovery } = args
 
   return (
     <form
@@ -22,9 +23,11 @@ export const VerifyEmail = ({ email, password, justSent, onBack }: Props): React
       className="flex flex-col gap-5"
     >
       <div className="text-center">
-        <h2 className="text-lg font-semibold tracking-tight">{t('verifyTitle')}</h2>
+        <h2 className="text-lg font-semibold tracking-tight">
+          {t(recovery ? 'forgotTitle' : 'verifyTitle')}
+        </h2>
         <p className="mt-1 text-sm text-fg-2">
-          {t(justSent ? 'verifySent' : 'verifyNeeded', { email })}
+          {t(recovery ? 'resetSent' : justSent ? 'verifySent' : 'verifyNeeded', { email })}
         </p>
       </div>
 
